@@ -1,5 +1,5 @@
 #!/bin/bash
-# agent-runbook installer — skills + marked AGENTS.md block.
+# agent-runbook installer — skills + marked AGENTS.md block + scaffold.
 # Idempotent. Targets stock macOS (bash 3.2, BSD userland) and Linux.
 set -eu
 
@@ -15,9 +15,12 @@ BEGIN_MARK="<!-- BLOCK:BEGIN:agent-runbook -->"
 END_MARK="<!-- BLOCK:END:agent-runbook -->"
 
 SKILL_DIRS="bro-mode eng-playbooks"
+SCAFFOLD_SRC="$HERE/scaffold/new-enclosing-folder.sh"
+SCAFFOLD_DST="${HOME}/.local/bin/new-enclosing-folder.sh"
 
 installed=""
 
+# 1. Skills (symlinks; replaced atomically on rerun)
 for base in "$OMP_SKILLS" "$AGENTS_SKILLS"; do
   if mkdir -p "$base" 2>/dev/null; then
     for skill in $SKILL_DIRS; do
@@ -38,9 +41,9 @@ for base in "$OMP_SKILLS" "$AGENTS_SKILLS"; do
   fi
 done
 
+# 2. AGENTS.md marked block (extracted from this repo's AGENTS.md — never embedded)
 mkdir -p "$(dirname "$OMP_AGENTS")"
 
-# Extract the block from the repo's AGENTS.md (between the marks, inclusive).
 tmp_block="$(mktemp)"
 awk -v begin="$BEGIN_MARK" -v end="$END_MARK" '
   $0 == begin { inblock = 1 }
@@ -76,10 +79,41 @@ rm -f "$tmp_block"
 installed="$installed
   $OMP_AGENTS (marked block appended/refreshed)"
 
+# 3. Scaffold (copy, exec bit — only if ~/.local/bin exists and is on PATH;
+#    refuse to clobber a foreign file, replace our own prior install atomically)
+if [ -x "$SCAFFOLD_SRC" ] && [ -d "${HOME}/.local/bin" ]; then
+  case ":$PATH:" in
+    *":${HOME}/.local/bin:"*)
+      if [ -L "$SCAFFOLD_DST" ]; then
+        rm "$SCAFFOLD_DST"
+      elif [ -e "$SCAFFOLD_DST" ]; then
+        if cmp -s "$SCAFFOLD_DST" "$SCAFFOLD_SRC"; then
+          : # same content; refresh below
+        else
+          echo "REFUSED: $SCAFFOLD_DST exists and differs from this repo's copy." >&2
+          echo "  If it is your own customization: diff it against scaffold/new-enclosing-folder.sh," >&2
+          echo "  reconcile, then re-run. Refusing to overwrite." >&2
+          exit 1
+        fi
+      fi
+      tmp_cp="$(mktemp)"
+      cat "$SCAFFOLD_SRC" > "$tmp_cp"
+      chmod 755 "$tmp_cp"
+      mv "$tmp_cp" "$SCAFFOLD_DST"
+      installed="$installed
+  $SCAFFOLD_DST (scaffold installed)"
+      ;;
+    *)
+      echo "NOTE: ~/.local/bin exists but is not on PATH; scaffold not installed."
+      ;;
+  esac
+fi
+
 cat <<EOF
 
 agent-runbook installed.
 $installed
 
-Uninstall: remove the marked block from $OMP_AGENTS and the two symlinks above.
+Uninstall: remove the marked block from $OMP_AGENTS, the two skill symlinks,
+and $SCAFFOLD_DST if it was installed.
 EOF
