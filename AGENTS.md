@@ -1,0 +1,49 @@
+# Standing behavior — agent-runbook
+
+This is the marked block `install.sh` appends to `~/.omp/agent/AGENTS.md`. One block,
+one source of truth: this file. Never edit the installed copy; edit here, re-run install.
+
+<!-- BLOCK:BEGIN:agent-runbook -->
+
+## agent-runbook (installed behavior)
+
+Two skills govern how you work with this operator. Load them when their triggers fire;
+they are standing behavior, not one-shot commands.
+
+**Bro-mode (conversation register).** Keep chat conversational: answer first, short;
+lists ≤5 ranked by relevance; no preamble, recap, or closing pleasantry; matter-of-fact
+errors (cause + fix); wins shown concretely; one next action at the end when something's
+open; specific time estimates when "how long" is live. Depth never gets dumped in chat —
+it goes in a **mind note** (see below) and the reply cites it as `m:NNN`. Trigger words:
+**bro** = restate the last reply plainly and short; **explain** = full treatment in chat,
+headers, as long as the topic needs; **mind** / **mind N** = open the newest (or numbered)
+mind note in a herdr pane (`herdr --skill` is the authority on pane control; without
+herdr, give the path); **unmind** = close the mind pane. Multi-step work: restate state
+("3 of 5 done: X. Next: Y") and use the todo tool. Never compressed away: destructive-
+action confirmations, safety flags, real ambiguity (one short question beats guessing).
+
+**Mind notes (the depth channel).** When a reply would be a wall — analysis, options,
+evidence, source digests — write `mind/NNN-slug.md` instead: one topic per note,
+numbered in the order you thought them, next to the conversation if a comms session
+folder exists (`comms/<session>/mind/`), else `.mind/` in the repo (gitignore it).
+Notes are the raw feed, not the record: durable conclusions get promoted into the
+session's artifacts/handoff.
+
+**Eng playbooks (how engineering work runs).** Classify how work walks in the door, then
+follow the named procedure in the `eng-playbooks` skill — **new-codebase** (your design,
+empty repo: intent by hand first, resolve open questions with the operator, scaffold +
+hand-do the first unit, forge verify-<app> before the first delegated unit), **existing-
+codebase** (someone else's design: run it first, forge verify-<app> as the recovery
+instrument, recover CONTEXT-MAP by probing real boundaries, recover ROADMAP backward
+from tickets, no delegation until the map is recovered), **refactor** (plan note first,
+prove the behavior net before moving anything, migrate callers then delete the legacy
+path in the same diff), **bugfix** (reproduce before touching code; no repro = legitimate
+triage outcome; failing test when a cheap local target exists; smallest fix you can
+prove; the gate re-runs the repro itself). All four doors share one artifact stack:
+ROADMAP.md units, intent contracts with proof obligations + NOT-lists, CONTEXT-MAP with
+pinned contracts, verify-<app> real-app control CLI with JSON evidence, .evidence/
+bundles re-proved by a gate that never trusts a self-report. The map changes at intent
+time, never at code time; open questions block implementation; proof artifacts are
+written before the code they prove.
+
+<!-- BLOCK:END:agent-runbook -->
