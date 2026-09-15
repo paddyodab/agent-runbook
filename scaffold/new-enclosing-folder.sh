@@ -21,13 +21,13 @@ TARGET_REAL="$PARENT/$FOLDER"
 # midway cannot leave a half-built folder. Portable: no in-place sed; works with stock
 # bash 3.2 / BSD sed (macOS) — the scaffolded session scripts are also bash-3.2-safe.
 STAGE="$PARENT/.$FOLDER.scaffold-$$"
-mkdir -p "$STAGE/comms/templates" "$STAGE/prior-art"
+mkdir -p "$STAGE/comms/templates" "$STAGE/prior-art" "$STAGE/artifacts"
 TARGET="$STAGE"   # heredocs below write into the staging dir
 cleanup() { rm -rf "$STAGE"; }
 trap cleanup EXIT
 
 # static "Folder convention" code block (prior-art / built repos are added later, not at scaffold time)
-CONVENTION=$'  README.md              <- this file: the folder\'s purpose + conventions\n  comms/                 <- agent/operator conversations and session handoffs (see comms/README.md)\n  prior-art/             <- repos we are studying and using for examples (their code; their own git). Read only when directed.\n  <built-repo>/          <- a repo we generate from this work (our code; tracked in git). Created later, once we start building.'
+CONVENTION=$'  README.md              <- this file: the folder\'s purpose + conventions\n  comms/                 <- agent/operator conversations and session handoffs (see comms/README.md)\n  artifacts/             <- project-scoped reference material (PDFs, decks, dumps, downloads). Named-by-hand access only: never globbed, never auto-read, never in a reading manifest unless a handoff names the exact file.\n  prior-art/             <- repos we are studying and using for examples (their code; their own git). Read only when directed. Clones here are made read-only: reference, never a work target.\n  <built-repo>/          <- a repo we generate from this work (our code; tracked in git). Created later, once we start building.'
 
 finish() {
   # slug substitution (portable: no in-place sed), exec bits, then the atomic move
@@ -56,7 +56,8 @@ $CONVENTION
 
 - The enclosing folder (\`$FOLDER/\`) is **not** a git repo.
 - \`comms/\` holds plain conversation/handoff files — **not** git-tracked. History lives on disk.
-- \`prior-art/\` holds other people's repos, cloned as-is with their own \`.git\`; we read them only when directed, and never commit to them.
+- \`prior-art/\` holds other people's repos, cloned as-is with their own \`.git\`; we read them only when directed, and never commit to them. Clones are made **read-only** on arrival (\`chmod -R a-w\`) — a prior-art repo is reference, never a work target. The copy we work on (if ever) is a separate clone at the folder root.
+- \`artifacts/\` holds project-scoped reference material (customer PDFs, decks, exports). It is **not** agent-browsable: open an artifact only when the operator or a handoff names it.
 - Repos we generate are git repos and **are** checked in.
 
 ## How the agent should interact
@@ -65,16 +66,15 @@ $CONVENTION
 2. Run \`./comms/session-start.sh\` (from this folder root) — it prints the reading manifest:
    \`comms/README.md\` then the newest **sealed** \`comms/<YYYYMMDD>-<NN>/session-handoff.md\`.
    Those are the only comms files to read at session start. The newest sealed handoff is canonical state.
-3. Read an older day's handoff or conversation **only** when the current handoff or the operator points to that specific file. Do not bulk-read comms history: a day-1 decision later abandoned should not re-enter context.
-4. \`prior-art/\` is reference material. Read a file from it **only** when a handoff, conversation, or the operator directs you to that specific file — do not scan or index prior-art by default.
-5. Work lands in the built repo(s); conversation/handoffs land in \`comms/\`. Don't commit \`prior-art/\` or \`comms/\`.
-6. Do not edit past handoffs in place — write a new one in the new session's folder so state stays traceable. \`session-end.sh\` seals.
-7. To start a new, unrelated idea, make a new enclosing folder (run \`new-enclosing-folder.sh\`).
+4. \`prior-art/\` is reference material. Read a file from it **only** when a handoff, conversation, or the operator directs you to that specific file — do not scan or index prior-art by default. Prior-art clones are read-only: if a write there is needed, stop and ask; the work copy lives at the folder root.
+5. \`artifacts/\` is reference material the operator dropped or directed. Same access rule: named files only, never a directory scan. It is not comms history and not prior-art — it is source material for the work.
+6. Work lands in the built repo(s); conversation/handoffs land in \`comms/\`. Don't commit \`prior-art/\`, \`artifacts/\`, or \`comms/\`.
+7. Do not edit past handoffs in place — write a new one in the new session's folder so state stays traceable. \`session-end.sh\` seals.
+8. To start a new, unrelated idea, make a new enclosing folder (run \`new-enclosing-folder.sh\`).
 
 ## This folder
-
-- **Purpose:** $PURPOSE
-- Prior-art repos are cloned into \`prior-art/\` as needed; repos we build are created at the root later, once study and conversation justify it.
+- Prior-art repos are cloned into \`prior-art/\` as needed and made read-only on arrival; repos we build are created at the root later, once study and conversation justify it. Reference material (PDFs, decks) lands in \`artifacts/\`, not comms.
+- Multi-agent parallel work happens in git worktrees of a built repo (\`git worktree add ../<repo>-lane-N\` from the built repo), not by writing into prior-art clones.
 - Session lifecycle: \`./comms/session-start.sh\` to begin or resume (\`--resume\` for same-day continuation), \`./comms/session-end.sh\` to seal the handoff at session end.
 EOF
 
@@ -711,6 +711,12 @@ This enclosing folder has a **scripted session protocol**. Follow it mechanicall
 Conventions in force: `README.md` at the folder root (folder purpose, what's tracked);
 `comms/README.md` (the protocol above, folder layout, handoff contract). Past handoffs are
 immutable — write new ones. Work lands in the built repos; conversation lands in `comms/`.
+
+Standing access rules: `prior-art/` clones are read-only reference — read named files when
+directed, never scan, never write (a work copy of anything lives at the folder root; parallel
+agent work uses git worktrees of the built repo). `artifacts/` holds reference material
+(PDFs, decks, exports): open only when the operator or a handoff names the exact file, never
+scan it, never commit it.
 AGENTS_EOF
 
 finish
@@ -720,4 +726,4 @@ echo "  - $TARGET_REAL/README.md"
 echo "  - $TARGET_REAL/AGENTS.md (session protocol, auto-loaded by agent sessions)"
 echo "  - $TARGET_REAL/comms/README.md"
 echo "  - $TARGET_REAL/comms/session-start.sh + session-end.sh + templates/"
-echo "Next: clone prior-art repos into $TARGET_REAL/prior-art/, then run ./comms/session-start.sh (from the folder root)."
+echo "Next: clone prior-art repos into $TARGET_REAL/prior-art/ (then chmod -R a-w each clone), run ./comms/session-start.sh (from the folder root). Drop operator reference material (PDFs, decks) into $TARGET_REAL/artifacts/."

@@ -21,8 +21,18 @@ skills/
   bro-mode/        — the conversational contract: chat stays conversational, depth
                      lives in mind notes, drill-in via herdr pane (or paths in chat)
   eng-playbooks/   — the four doors + the artifact stack they share
+  turborepo/       — vendored vercel/turborepo skill (canary.4): the monorepo build
+                     system, so monorepo work walks the doors with turbo knowledge
 scaffold/
-  new-enclosing-folder.sh — one idea, one folder: comms/ + prior-art/ + built repos
+  new-enclosing-folder.sh — one idea, one folder: comms/ + prior-art/ (read-only) +
+                     artifacts/ + built repos
+machine.yml       — the declarative machine: omp version pin, runtime deps, skill
+                     list, ticketing adapter slot (none | gh-issues | shortcut)
+machine.md        — fresh-box sequence: turn any box (laptop, VPS, docker sandbox)
+                     into a working omp with all the extras, reproducibly
+install.sh        — classic (this tree) and --machine (manifest-driven) modes,
+                     plus --doctor (read-only what's-missing/drifted report)
+sandbox-test.sh   — the proof: docker + fresh HOME + machine install + pinned omp
 ```
 
 - **Bro-mode** — the agent's standing register: answer first, lists ≤5, no preamble or
@@ -41,27 +51,44 @@ scaffold/
 ```
 
 One idea, one folder: `comms/` for conversation continuity (session-start/end scripts,
-templates, sealed handoffs), `prior-art/` for reference repos, built repos at the root.
+templates, sealed handoffs), `prior-art/` for reference repos (clones made read-only on
+arrival — reference, never a work target; the copy we edit lives at the root; parallel
+agent work uses git worktrees), `artifacts/` for operator-dropped reference material
+(PDFs, decks — named-file access only, never scanned), built repos at the root.
 It builds atomically (stages, then moves into place) and is bash-3.2/BSD-safe — works on
 stock macOS. This repo's copy is canonical; `~/.local/bin/new-enclosing-folder.sh`
 becomes an installation of it (below).
 
+## The fresh box (machine mode)
+
+Your global omp area is a build output, not the agent. `machine.yml` declares what a box
+needs — omp version pin, deps, skills, one ticketing adapter (workplace-owned, not
+repo-owned) — and `install.sh --machine` builds it on any box. `--doctor` reports
+what's missing or drifted without touching anything. [machine.md](machine.md) carries
+the full sequence; [sandbox-test.sh](sandbox-test.sh) proves it in a docker container
+before you trust it on real hardware.
+
 ## Install
 
 ```bash
-./install.sh    # skills → ~/.omp/agent/skills/ + ~/.agents/skills/ (symlinks)
-                # marked behavior block → ~/.omp/agent/AGENTS.md (idempotent append)
-                # scaffold → ~/.local/bin/ (if it exists and is on PATH; skips otherwise)
+./install.sh             # classic: skills (incl. turborepo) symlinked from this tree,
+                         # marked behavior block → ~/.omp/agent/AGENTS.md,
+                         # scaffold → ~/.local/bin/ (if on PATH; skips otherwise)
+./install.sh --machine   # fresh box: manifest-driven (machine.yml); omp version check,
+                         # dep gates, adapter clone + omp plugin link, secrets gated
+./install.sh --doctor    # read-only report: missing/drifted; writes nothing
 ```
 
-Idempotent — rerun after pulling. Uninstall: remove the marked block, the two skill
+Idempotent — rerun after pulling. Uninstall: remove the marked block, the skill
 symlinks, and `~/.local/bin/new-enclosing-folder.sh` (all paths printed at the end of
-install).
+install; adapter clones live under `~/.omp/adapters/`).
 
 ## Hit the ground running
 
 After install, run the [SMOKE.md](SMOKE.md) checklist — checks that prove the toolkit is
 live in a fresh session. If all pass, the agent behaves; no prior context needed.
+For the machine/fresh-box path, the equivalent is `./sandbox-test.sh` (docker) plus the
+machine checks in [machine.md](machine.md).
 
 ## Conventions
 

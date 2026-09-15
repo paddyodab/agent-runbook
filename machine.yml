@@ -1,0 +1,73 @@
+# machine.yml — the declarative machine: what a fresh box needs to become THIS
+# operator's working omp. Consumed by install.sh (machine mode). Pins are explicit:
+# reproducibility comes from versions, not from "whatever the working tree has".
+#
+# Format is deliberately plain YAML, no templating: a human reads this on a new box.
+
+machine:
+  name: personal-desktop            # edit per machine (personal-desktop, work-laptop, vps-01, ...)
+  omp:
+    version: "18.2.0"               # `omp --version` must match (warning only, never auto-upgrade)
+    install_hint: |
+      Install options, pick one:
+        mise:    mise use -g github:can1357/oh-my-pi@18.2.0
+        bun:     bun install -g @oh-my-pi/pi-coding-agent@17.4.2   # bun ships older pin; prefer mise
+      omp's own installer: see https://github.com/can1357/oh-my-pi
+  runtime_deps:                     # needed by the extras, not by omp itself
+    - name: git
+      check: git --version
+    - name: gh                      # gh-issues adapter; also used for remote ops
+      check: gh --version
+    - name: glow                    # herdr mind-pane rendering (optional, warn only)
+      check: glow --version
+      optional: true
+    - name: herdr                   # mind-pane drill-in (optional, warn only)
+      check: herdr --help
+      optional: true
+
+# Skills symlinked from this repo. Each: { name, source } — source is a path in this
+# repo (installed from HERE) or a git URL + ref (installed by cloning into ~/.cache).
+skills:
+  - name: bro-mode
+    source: skills/bro-mode
+  - name: eng-playbooks
+    source: skills/eng-playbooks
+  - name: turborepo                 # vendored from vercel/turborepo @ canary.4; see skills/turborepo header
+    source: skills/turborepo
+
+# Ticketing adapter slot. Exactly ONE active adapter per machine profile; the
+# runbook treats intake as workplace-owned, not repo-owned. An adapter = skill(s)
+# + optional omp extension + optional env secrets (gated, never installed by us).
+adapters:
+  active: none                      # none | gh-issues | shortcut
+  definitions:
+    none:
+      description: no ticketing system; work walks in via conversation
+      skills: []
+      extensions: []
+      secrets: []
+    gh-issues:
+      description: GitHub issues as ticketing (personal repos)
+      skills: []                    # adapter skill is TODO: write when first forged (gh is installed + authed)
+      extensions: []
+      secrets:
+        - name: gh auth
+          check: gh auth status
+          hint: run `gh auth login` interactively
+    shortcut:
+      description: Shortcut (app.shortcut.com) via the omp-shortcut extension
+      repo: https://github.com/pdabney/omp-shortcut
+      pin: 536e3bd                  # commit; update deliberately, never floating
+      install: omp plugin link <cloned-path>   # extension + /sc command + shortcut skill
+      skills: []                    # skill ships inside the extension repo
+      secrets:
+        - name: SHORTCUT_API_TOKEN
+          check: test -n "$SHORTCUT_API_TOKEN"
+          hint: create at https://app.shortcut.com/settings/account/api-tokens and export
+
+# Marked AGENTS.md block + scaffold: implicit (installed from this repo, not listed).
+
+# Secrets policy: install.sh NEVER writes secret values. It checks presence
+# (`check:`), prints `hint:` when missing, and exits 0 with a WARN list — a fresh
+# box bootstraps auth interactively, then re-runs install for a clean doctor bill.
+secrets_policy: manual-interactive

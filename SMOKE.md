@@ -1,7 +1,8 @@
 # SMOKE.md — hit-the-ground-running checklist
 
 Run in a **fresh agent session** after `./install.sh`, in any repo (or a scratch dir).
-All five must pass. If one fails, fix before trusting the toolkit.
+All five session checks must pass. If one fails, fix before trusting the toolkit.
+Machine-mode checks (6–10) apply when the box was set up with `install.sh --machine`.
 
 | # | Check | Pass when |
 | --- | --- | --- |
@@ -17,3 +18,13 @@ Notes:
   touch your repo's gitignore deliberately; add `.mind/` yourself when first used).
 - A failed check is a bug in this repo, not in your machine. Fix here, re-install,
   re-smoke.
+
+## Machine-mode checks (fresh box / after `install.sh --machine`)
+
+| # | Check | Pass when |
+| --- | --- | --- |
+| 6 | **Skills match the manifest.** `ls -la ~/.omp/agent/skills/` | bro-mode, eng-playbooks, turborepo are symlinks into the runbook repo. |
+| 7 | **Doctor is honest and clean.** `./install.sh --doctor --machine` | "nothing missing, nothing drifted" — or the report names exactly what's absent (e.g. a secret), and it IS absent. |
+| 8 | **Adapter matches the machine.** Personal box: adapter `none`/`gh-issues`, no shortcut extension (`omp plugin list`). Work box: shortcut cloned at the pinned commit under `~/.omp/adapters/` and linked. |
+| 9 | **Sandbox proof.** `./sandbox-test.sh` on a docker host | All steps green; step 4 (`omp --print`) SKIPs without auth by design. |
+| 10 | **Version pin holds.** `omp --version` | Matches `machine.yml` `omp.version` exactly. |
