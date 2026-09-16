@@ -12,6 +12,7 @@ docker sandbox). Fresh install, all the extras, nothing accumulated by accident.
 | `install.sh --machine` | Manifest-driven install: skills symlinked, AGENTS.md block, scaffold, adapter clone + omp plugin link, secrets *gated* (never written) | this repo |
 | `install.sh --doctor` | Read-only report: what's missing, what drifted. Runs before every mutation, writes nothing | this repo |
 | `sandbox-test.sh` | The proof: docker container (debian + the repo mounted), fresh HOME, machine install, pinned omp via mise, `omp --print` round-trip when auth is provided | this repo |
+| `sbx-test.sh` | Same proof in a real Docker Sandbox microVM (`sbx create shell`), virgin HOME, machine install, pinned omp, optional `omp --print` | this repo |
 | scaffold (`new-enclosing-folder.sh`) | The enclosing-folder stamp (comms protocol, prior-art read-only, artifacts/) | this repo |
 
 ## Ticketing = an adapter slot, not a runbook feature
@@ -54,7 +55,8 @@ Rules the adapters inherit:
    exports happen; re-run after.
 6. **Prove it (sandbox or the real box):** `./sandbox-test.sh` — proves in a container:
    machine install green, pinned omp runs, scaffold lands. Step 4 (`omp --print`) skips
-   without auth; with `OMP_AUTH` passed in it proves the full model round-trip.
+   without auth; with `OMP_AUTH` passed in it proves the full model round-trip. For a
+   real Docker Sandbox microVM, use `./sbx-test.sh` (same steps; needs `sbx` authenticated).
 7. **Enclosing folder (if this box hosts work):** `new-enclosing-folder.sh` — stamps the
    comms protocol, `prior-art/` (clones made read-only: `chmod -R a-w`, reference never
    work target), `artifacts/` (named-file access only, never scanned), worktree rule for
@@ -68,8 +70,10 @@ Rules the adapters inherit:
   set); writes **nothing** (verified: no files created under a bare HOME).
 - Shortcut adapter in junk HOME: pinned clone at `536e3bd`, `omp plugin link` OK,
   missing-token warning with how-to.
-- Docker sandbox (debian stable-slim): full steps 1–3 green in ~30 s; step 4 requires
-  auth passthrough by design.
+- Docker container (debian stable-slim via `sandbox-test.sh`): full steps 1–3 green in
+  ~30 s; step 4 requires auth passthrough by design.
+- Docker Sandbox microVM (`sbx-test.sh`): same proof under `sbx create shell`; workspace
+  dir must pre-exist (script mkdir's under `~/sandbox-agents/`).
 - Scaffold: junk-folder run green; prior-art write refused (`Permission denied` on
   touch and on `git commit`), undo path (`chmod -R u+w`) verified; `artifacts/` present;
   session-start bootstraps.

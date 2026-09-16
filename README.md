@@ -34,7 +34,8 @@ machine.md        — fresh-box sequence: turn any box (laptop, VPS, docker sand
                      into a working omp with all the extras, reproducibly
 install.sh        — classic (this tree) and --machine (manifest-driven) modes,
                      plus --doctor (read-only what's-missing/drifted report)
-sandbox-test.sh   — the proof: docker + fresh HOME + machine install + pinned omp
+sandbox-test.sh   — the proof: docker container + fresh HOME + machine install + pinned omp
+sbx-test.sh       — the same proof in a real Docker Sandbox microVM (sbx create shell)
 ```
 
 - **Bro-mode** — the agent's standing register: answer first, lists ≤5, no preamble or
@@ -72,7 +73,7 @@ Your global omp area is a build output, not the agent. `machine.yml` declares wh
 needs — omp version pin, deps, skills, one ticketing adapter (workplace-owned, not
 repo-owned) — and `install.sh --machine` builds it on any box. `--doctor` reports
 what's missing or drifted without touching anything. [machine.md](machine.md) carries
-the full sequence; [sandbox-test.sh](sandbox-test.sh) proves it in a docker container
+the full sequence; [sandbox-test.sh](sandbox-test.sh) proves it in a docker container, and [sbx-test.sh](sbx-test.sh) proves it in a real Docker Sandbox microVM
 before you trust it on real hardware.
 
 ## Install
