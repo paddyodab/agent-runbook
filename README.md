@@ -21,6 +21,8 @@ skills/
   bro-mode/        — the conversational contract: chat stays conversational, depth
                      lives in mind notes, drill-in via herdr pane (or paths in chat)
   eng-playbooks/   — the four doors + the artifact stack they share
+  fan-out-lanes/   — Herdr 1:N coordinator: canary → worktrees/panes → wait → gate;
+                     workers return HANDOFF.md + evidence; never write sealed comms/
   turborepo/       — vendored vercel/turborepo skill (canary.4): the monorepo build
                      system, so monorepo work walks the doors with turbo knowledge
 scaffold/
@@ -39,6 +41,11 @@ sandbox-test.sh   — the proof: docker + fresh HOME + machine install + pinned 
   recaps, one next action. Depth goes to mind notes (numbered markdown files), cited in
   chat as `m:NNN`. Say "mind" (or "mind 3") to open one in a herdr pane; "bro" to get a
   plain restate; "explain" to break the register upward.
+- **Fan-out lanes** — after a sealed intent and `verify-<app>`, the foreman canaries,
+ then opens git worktrees + herdr panes, waits with `herdr agent wait`, re-proves via
+ the gate, and returns one verdict. Lane workers leave `HANDOFF.md` + `.evidence/`;
+ sealed `comms/` stays operator ↔ foreman only.
+
 - **Eng playbooks** — classify how work walks in the door, then follow one named procedure:
   new-codebase (Mode A: artifacts before code), existing-codebase (Mode B: recover the
   design from the running system), refactor (behavior net first, migrate-and-delete),

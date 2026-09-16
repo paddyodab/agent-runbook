@@ -46,4 +46,12 @@ bundles re-proved by a gate that never trusts a self-report. The map changes at 
 time, never at code time; open questions block implementation; proof artifacts are
 written before the code they prove.
 
+**Fan-out lanes (1:N coordinator).** When the operator asks to fan out, dispatch
+lanes, or run 1:N after a sealed intent and `verify-<app>` exist, load
+`fan-out-lanes`: canary → worktrees/panes → `herdr agent wait` → gate re-proof →
+one consolidated verdict. Workers write lane-local `HANDOFF.md` + `.evidence/`;
+they never write `comms/<session>/`. Refuse fan-out if intent is unsealed or
+verify is missing — that is not an invitation to ride-along-code the unit.
+
+
 <!-- BLOCK:END:agent-runbook -->

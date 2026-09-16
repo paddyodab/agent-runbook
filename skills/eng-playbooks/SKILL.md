@@ -82,3 +82,10 @@ Pick the surface when verify-<app> is forged; the door doesn't change.
    the doubtful assumption — don't try attempt 3 alone.
 4. Same failure class third occurrence → the system's wrong, not the code: encode the
    lesson as a check (lint/script/gate), not a memory.
+
+## 6. Parallel dispatch (1:N)
+
+When a sealed intent is ready and `verify-<app>` exists, use **fan-out-lanes** for
+the Herdr control loop (canary, worktrees, wait, gate). Do not improvise multi-pane
+spawns outside that skill once it is installed.
+
