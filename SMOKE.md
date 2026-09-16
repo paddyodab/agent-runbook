@@ -27,5 +27,6 @@ Notes:
 | 6 | **Skills match the manifest.** `ls -la ~/.omp/agent/skills/` | bro-mode, eng-playbooks, fan-out-lanes, turborepo are symlinks into the runbook repo. |
 | 7 | **Doctor is honest and clean.** `./install.sh --doctor --machine` | "nothing missing, nothing drifted" — or the report names exactly what's absent (e.g. a secret), and it IS absent. |
 | 8 | **Adapter matches the machine.** Personal box: adapter `none`/`gh-issues`, no shortcut extension (`omp plugin list`). Work box: shortcut cloned at the pinned commit under `~/.omp/adapters/` and linked. |
-| 9 | **Sandbox proof.** `./sandbox-test.sh` on a docker host | All steps green; step 4 (`omp --print`) SKIPs without auth by design. |
+| 9 | **Sandbox proof (container).** `./sandbox-test.sh` on a docker host | All steps green; step 4 (`omp --print`) SKIPs without auth by design. |
+| 9b | **Sandbox proof (sbx microVM).** `./sbx-test.sh` where Docker Sandboxes is installed | All steps green; step 5 SKIPs without auth by design. |
 | 10 | **Version pin holds.** `omp --version` | Matches `machine.yml` `omp.version` exactly. |
