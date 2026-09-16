@@ -37,7 +37,7 @@ OMP_AGENTS="${HOME}/.omp/agent/AGENTS.md"
 BEGIN_MARK="<!-- BLOCK:BEGIN:agent-runbook -->"
 END_MARK="<!-- BLOCK:END:agent-runbook -->"
 
-SKILL_DIRS="bro-mode eng-playbooks turborepo"
+SKILL_DIRS="bro-mode eng-playbooks fan-out-lanes turborepo"
 MANIFEST="$HERE/machine.yml"
 
 if [ "$MODE" = "machine" ]; then

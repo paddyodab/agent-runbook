@@ -85,6 +85,9 @@ and regression re-proofs get their own numbered artifacts.
 
 ## 1:N delegation
 
+**Runtime:** use the `fan-out-lanes` skill when spawning parallel omp
+workers in herdr. The pattern below is the contract; that skill is the control loop.
+
 **Seed unit inline first** (shared prerequisite), then **parallel lanes on disjoint
 files**, then the **gate**. Canons that held:
 
@@ -114,10 +117,10 @@ Provenance: sharpened against prior-art (pstack, lid, spec-kit, turborepo, i-hav
 but **not yet exercised in omp**. Each becomes real only when a forge unit proves it:
 
 - **Playbook routing steps verbatim into the todo list** (pstack poteto-mode).
-- **Delegation handoff contract + verification enum**: workers return Branch /
-  Verification (live-ui-verified / unit-test-verified / type-check-only /
-  verifier-blocked / verifier-failed / not-verified) / Failure Mode / Measurements;
-  gate parses and rejects `not-verified` (orchestrate).
+- ~~**Delegation handoff contract + verification enum**~~ **FORGED** as
+  `skills/fan-out-lanes/` + `references/HANDOFF.template.md` (Branch / Verification
+  enum / Failure Mode / Measurements; gate rejects `not-verified`). Coordinator
+  loop: canary → worktrees/panes → `herdr agent wait` → gate → one verdict.
 - **Measurement re-verification**: gate re-runs quantitative claims post-handoff
   (tolerance, unit-aware) (orchestrate).
 - **Strong-model consult checkpoints**: before major decisions, when stuck twice,

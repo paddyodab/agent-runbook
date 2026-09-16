@@ -32,6 +32,8 @@ skills:
     source: skills/bro-mode
   - name: eng-playbooks
     source: skills/eng-playbooks
+  - name: fan-out-lanes
+    source: skills/fan-out-lanes
   - name: turborepo                 # vendored from vercel/turborepo @ canary.4; see skills/turborepo header
     source: skills/turborepo
 
