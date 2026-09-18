@@ -27,7 +27,7 @@ cleanup() { rm -rf "$STAGE"; }
 trap cleanup EXIT
 
 # static "Folder convention" code block (prior-art / built repos are added later, not at scaffold time)
-CONVENTION=$'  README.md              <- this file: the folder\'s purpose + conventions\n  comms/                 <- agent/operator conversations and session handoffs (see comms/README.md)\n  artifacts/             <- project-scoped reference material (PDFs, decks, dumps, downloads). Named-by-hand access only: never globbed, never auto-read, never in a reading manifest unless a handoff names the exact file.\n  prior-art/             <- repos we are studying and using for examples (their code; their own git). Read only when directed. Clones here are made read-only: reference, never a work target.\n  <built-repo>/          <- a repo we generate from this work (our code; tracked in git). Created later, once we start building.'
+CONVENTION=$'  README.md              <- this file: the folder\'s purpose + conventions\n  comms/                 <- agent/operator conversations and session handoffs (see comms/README.md)\n  work/                  <- edit copies of prior-art repos (work/<repo>), created when a ticket needs changes. All edits + commits land here; prior-art/ stays untouched.\n  artifacts/             <- project-scoped reference material (PDFs, decks, dumps, downloads). Named-by-hand access only: never globbed, never auto-read, never in a reading manifest unless a handoff names the exact file.\n  prior-art/             <- repos we are studying and using for examples (their code; their own git). Read only when directed. Clones here are made read-only: reference, never a work target.\n  <built-repo>/          <- a repo we generate from this work (our code; tracked in git). Created later, once we start building.'
 
 finish() {
   # slug substitution (portable: no in-place sed), exec bits, then the atomic move
@@ -74,6 +74,7 @@ $CONVENTION
 
 ## This folder
 - Prior-art repos are cloned into \`prior-art/\` as needed and made read-only on arrival; repos we build are created at the root later, once study and conversation justify it. Reference material (PDFs, decks) lands in \`artifacts/\`, not comms.
+- Repos from prior-art that a ticket needs changed are cloned to \`work/<repo>\` and edited there — never write into \`prior-art/\`. Honor operator instructions about folder layout as acceptance criteria.
 - Multi-agent parallel work happens in git worktrees of a built repo (\`git worktree add ../<repo>-lane-N\` from the built repo), not by writing into prior-art clones.
 - Session lifecycle: \`./comms/session-start.sh\` to begin or resume (\`--resume\` for same-day continuation), \`./comms/session-end.sh\` to seal the handoff at session end.
 EOF
@@ -714,9 +715,14 @@ immutable — write new ones. Work lands in the built repos; conversation lands 
 
 Standing access rules: `prior-art/` clones are read-only reference — read named files when
 directed, never scan, never write (a work copy of anything lives at the folder root; parallel
-agent work uses git worktrees of the built repo). `artifacts/` holds reference material
+agent work uses git worktrees of the built repo). Ticket work that changes a studied repo
+clones it to `work/<repo>` at the folder root and edits there. `artifacts/` holds reference material
 (PDFs, decks, exports): open only when the operator or a handoff names the exact file, never
 scan it, never commit it.
+
+Finish line: when a change is proven (repro gone, tests green), offer the operator the
+push/PR step with exact commands ready — never push without their explicit go, but never
+end on a proven fix without offering.
 AGENTS_EOF
 
 finish

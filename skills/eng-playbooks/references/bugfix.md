@@ -23,7 +23,8 @@ unit — intent + proofs + gate — but its intent is written from the repro.
    operator), name the doubtful assumption before attempt 3.
 5. **Prove: repro green, prior obligations green, then re-run on main.** Evidence
    bundle like any unit. A regression test earns its place only if a plausible future
-   bug would fail it.
+   bug would fail it. Then hit the **Finish line** section below — the push/PR offer —
+   before reporting done.
 6. **If the bug revealed a map lie** (behavior the CONTEXT-MAP/feature docs don't
    match): contract break — fix the map **with proof** in the same diff, never
    silently.
@@ -32,6 +33,15 @@ unit — intent + proofs + gate — but its intent is written from the repro.
 
 Repro passes, regression net green, evidence reviewed at the pass. The gate re-runs the
 repro itself — show the failing state and the passing state.
+
+## Finish line
+
+A proven fix (step 5) is not a complete delivery on its own. Before ending the turn,
+offer the operator the remote step with exact commands ready: push the branch, open or
+update the PR (with the `[sc-<storyId>](url)` link line when the ticket came from
+Shortcut — the `shortcut` skill's GitHub-linking section has the required shape). Never
+push or open a PR without explicit operator go; but never end on a proven fix without
+surfacing the offer. No remote workflow → offer the local-commit finish and say so.
 
 ## Escalation
 

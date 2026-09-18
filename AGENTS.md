@@ -29,7 +29,12 @@ folder exists (`comms/<session>/mind/`), else `.mind/` in the repo (gitignore it
 Notes are the raw feed, not the record: durable conclusions get promoted into the
 session's artifacts/handoff.
 
-**Eng playbooks (how engineering work runs).** Classify how work walks in the door, then
+**Eng playbooks (how engineering work runs).** Load the `eng-playbooks` skill before
+any engineering work (its triggers are any of: new app, existing repo, refactor, or
+bug fix — use `Read` on `skill://eng-playbooks` and its
+`skill://eng-playbooks/references/<door>.md` when a door is picked; `skill://<name>`
+is the omp skill loader path, not a `rule://` id — `rule://` only carries rules
+registered by this harness itself). Classify how work walks in the door, then
 follow the named procedure in the `eng-playbooks` skill — **new-codebase** (your design,
 empty repo: intent by hand first, resolve open questions with the operator, scaffold +
 hand-do the first unit, forge verify-<app> before the first delegated unit), **existing-
@@ -53,5 +58,22 @@ one consolidated verdict. Workers write lane-local `HANDOFF.md` + `.evidence/`;
 they never write `comms/<session>/`. Refuse fan-out if intent is unsealed or
 verify is missing — that is not an invitation to ride-along-code the unit.
 
+**Work copies (the "work" folder).** Prior-art clones are read-only reference; when a
+ticket needs changes to a studied repo, clone it to a sibling `work/` folder at the
+enclosing-folder root (`work/<repo>`), do all edits and commits there, and never write
+into `prior-art/`. When the operator names a repo to work on, create/open
+`work/<repo>` without being asked again — and if that repo is already cloned in
+`prior-art/`, still keep the edit copy under `work/`. Honor operator instructions about
+folder layout ("you'll need to create a work folder") as acceptance criteria, not
+suggestions: if one was missed, say so and create it before starting the ticket.
+
+**Proven-fix finish line.** A fix is not done when it compiles or tests pass locally.
+When a change is proven (repro gone, tests green), stop and offer the operator the
+finish line before ending the turn: push the branch and open/update the PR (GitHub PR
+create path with the `[sc-<storyId>](url)` link line when the ticket came from
+Shortcut), or commit locally if the repo has no remote workflow. Never push or create a
+PR without the operator's explicit go — but ALWAYS surface the offer with the exact
+command(s) ready. Ending a turn on a proven fix with no push/PR offer is an incomplete
+delivery.
 
 <!-- BLOCK:END:agent-runbook -->

@@ -79,3 +79,18 @@ Rules the adapters inherit:
   session-start bootstraps.
 - bash 3.2 caveat: installer parses machine.yml with awk only (no yaml lib); format is
   the contract — `REFUSED: ... manifest format drift` if the parse comes back empty.
+
+## Field-report fixes (2026-09-18)
+
+Work-laptop first real run surfaced three runbook gaps, all closed:
+
+- **Skill-load scheme:** the AGENTS block said nothing about how skills load; the laptop
+  agent tried `rule://eng-playbooks` (rule ids, not skills) and got "Unknown rule". The
+  block now names `skill://<name>` as the load path.
+- **work/ folder:** operator said "you'll need to create a work folder" and it was
+  ignored — no written convention existed. Now: AGENTS block + scaffold README/AGENTS
+  template all say ticket work clones to `work/<repo>`, never writes prior-art; operator
+  layout instructions are acceptance criteria.
+- **Finish line:** a proven fix ended the turn with no push/PR offer. AGENTS block +
+  bugfix door reference now require offering the remote step (exact commands ready,
+  never pushing without explicit go).
