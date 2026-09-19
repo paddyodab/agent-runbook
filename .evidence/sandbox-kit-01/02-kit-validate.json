@@ -1,0 +1,17 @@
+{
+  "unit": "sandbox-kit-01",
+  "artifact": "kit validation",
+  "commands": ["sbx kit validate ./kit/omp", "sbx kit inspect ./kit/omp --json"],
+  "result": "VALID",
+  "schema": "v2",
+  "kind": "sandbox",
+  "extends": null,
+  "image": "paddyodab/sbx-omp:18.2.0",
+  "entrypoint": ["omp"],
+  "args": {"omp_version": "18.2.0 (pattern-pinned)", "adapter": "none|gh-issues|shortcut enum"},
+  "policies": {"network_allow": 9, "deny": 0, "credentials": ["omp-auth", "gh-auth", "shortcut-api"], "env_vars": 2, "files_home": 36},
+  "spec_fixes_during_forge": [
+    "v1-style top-level files: → rejected by parser; static files moved to files/ tree (§5.8)",
+    "network allow-list deduped (api.github.com listed once; dropped redundant :443 exact)"
+  ]
+}

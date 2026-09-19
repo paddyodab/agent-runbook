@@ -1,0 +1,109 @@
+schemaVersion: "2"
+kind: sandbox
+name: omp
+displayName: oh-my-pi (agent-runbook)
+description: >-
+  oh-my-pi coding agent in a Docker Sandbox, rendered from machine.yml:
+  pinned omp on mise, runbook skills + AGENTS.md behavior block, adapter
+  credentials injected by the host-side proxy (secrets never enter the VM).
+version: 0.1.0
+sourceURL: https://github.com/paddyodab/agent-runbook
+licenses:
+  - MIT
+
+args:
+  omp_version:
+    default: "18.2.0"
+    description: omp version pin (mirrors machine.yml machine.omp.version)
+    pattern: '^[0-9]+\.[0-9]+\.[0-9]+$'
+  adapter:
+    default: "none"
+    description: ticketing adapter (none | gh-issues | shortcut; mirrors machine.yml adapters.active)
+    enum: [none, gh-issues, shortcut]
+
+sandbox:
+  image: paddyodab/sbx-omp:18.2.0
+  entrypoint: [omp]
+  command:
+    interactive: []
+
+agentInstructions:
+  filename: AGENTS.md
+  content: |
+    # agent-runbook behavior (sandbox kit)
+
+    You are running inside a Docker Sandbox as the omp agent. The runbook's
+    standing behavior block is installed at ~/.omp/agent/AGENTS.md by this
+    kit's files. Skills load via `skill://<name>`.
+
+    Environment facts:
+    - omp pin and machine manifest: machine.yml in the agent-runbook repo.
+    - Sandbox isolation: you are in a microVM; the workspace is mounted from
+      the host. Stay inside it.
+    - Credentials (Shortcut token, gh auth) are proxy-injected on the host;
+      the values you see are sentinels — never try to read the real secret.
+
+permissions:
+  network:
+    allow:
+      # omp model traffic + auth
+      - ollama.com
+      - "*.ollama.com"
+      - api.github.com
+      - github.com
+      - objects.githubusercontent.com
+      # tool ecosystems (mise, gh, glow, apt)
+      - mise.run
+      - github-releases.githubusercontent.com
+      - "*.ubuntu.com"
+
+credentials:
+  - service: omp-auth
+    description: omp model-provider auth (OMP_API_KEY / OMP_AUTH via proxy)
+    required: false
+    apiKey:
+      name: OMP_API_KEY
+      proxyManaged: true
+      inject:
+        - domain: ollama.com
+          header: Authorization
+          format: "Bearer %s"
+  - service: gh-auth
+    description: GitHub CLI auth (gh-issues adapter; gh auth login on host)
+    required: false
+    apiKey:
+      name: GH_TOKEN
+      proxyManaged: true
+      inject:
+        - domain: api.github.com
+          header: Authorization
+          format: "Bearer %s"
+  - service: shortcut-api
+    description: Shortcut API token (shortcut adapter; work-laptop only)
+    required: false
+    apiKey:
+      name: SHORTCUT_API_TOKEN
+      proxyManaged: true
+      inject:
+        - domain: api.shortcut.com
+          header: APIToken
+          format: "%s"
+
+environment:
+  variables:
+    OMP_VERSION: "${{ kit.args.omp_version }}"
+    RUNBOOK_ADAPTER: "${{ kit.args.adapter }}"
+
+setup:
+  install:
+    - command: |
+        set -eu
+        # Sanity: skills + AGENTS block ship as static kit files; omp comes
+        # baked in the template image at the pinned version.
+        test -d /home/agent/.omp/agent/skills/bro-mode
+        test -f /home/agent/.omp/agent/AGENTS.md
+        grep -q "BLOCK:BEGIN:agent-runbook" /home/agent/.omp/agent/AGENTS.md
+        V="$(omp --version | awk -F/ '{print $2}')"
+        echo "   kit install: omp ${V} (arg pin ${OMP_VERSION}), skills + AGENTS block present"
+      user: "1000"
+      description: Verify kit payload landed and omp matches pin

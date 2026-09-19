@@ -32,6 +32,12 @@ machine.yml       — the declarative machine: omp version pin, runtime deps, sk
                      list, ticketing adapter slot (none | gh-issues | shortcut)
 machine.md        — fresh-box sequence: turn any box (laptop, VPS, docker sandbox)
                      into a working omp with all the extras, reproducibly
+template/         — Dockerfile for paddyodab/sbx-omp:<pin>: the omp sandbox image
+                     (extends docker/sandbox-templates:shell-docker; mise + omp baked)
+kit/omp/          — Docker Sandboxes kit (kind: sandbox, schema v2): the sandbox
+                     rendering of machine.yml — entrypoint omp, proxy-managed
+                     credentials, network allow-list, skills + AGENTS block as files;
+                     domain mixins land under kit/mixins/<domain>/ when forged
 install.sh        — classic (this tree) and --machine (manifest-driven) modes,
                      plus --doctor (read-only what's-missing/drifted report)
 sandbox-test.sh   — the proof: docker container + fresh HOME + machine install + pinned omp
