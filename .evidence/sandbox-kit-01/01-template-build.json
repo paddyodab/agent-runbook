@@ -1,0 +1,16 @@
+{
+  "unit": "sandbox-kit-01",
+  "artifact": "template image build",
+  "command": "docker build --build-arg OMP_VERSION=18.2.0 -t paddyodab/sbx-omp:18.2.0 template/",
+  "result": "ok",
+  "image": "paddyodab/sbx-omp:18.2.0",
+  "base": "docker/sandbox-templates:shell-docker",
+  "checks": [
+    "omp --version == omp/18.2.0 inside image build (build-time gate, grep omp/18.2.0)",
+    "gh, glow, jq versions verify in image build",
+    "mise shims on PATH via /etc/sandbox-persistent.sh",
+    "agent user UID 1000 owns /home/agent tooling (user-level installs as agent)"
+  ],
+  "first_build_failure": "version grep used 'oh-my-pi/18.2.0' but omp prints 'omp/18.2.0' — gate caught it; fixed",
+  "loaded_into_sbx": "sbx template load /tmp/sbx-omp-18.2.0.tar → Load complete"
+}

@@ -62,6 +62,37 @@ Rules the adapters inherit:
    work target), `artifacts/` (named-file access only, never scanned), worktree rule for
    multi-agent parallelism.
 
+## Sandbox rendering of this manifest (kit/omp + template/)
+
+machine.yml is canonical for what a machine gets. The **sandbox projection** of the same
+manifest is `kit/omp/` (a Docker Sandboxes kit, `kind: sandbox`, schema v2) over
+`template/Dockerfile` (the omp image). The mirror contract: changes land in machine.yml
+first, the kit derives from it — never the reverse.
+
+| machine.yml | kit/omp/spec.yaml |
+| --- | --- |
+| `machine.omp.version` | `args.omp_version` (pattern-pinned) → template build arg |
+| `runtime_deps` (git, gh, glow) | baked in the template image (apt + mise layer) |
+| `skills:` | `kit/omp/files/home/.omp/agent/skills/` (regenerate recipe in kit README) |
+| `adapters.active` + `adapters.*.secrets` | `args.adapter` + `credentials:` (proxy-managed: real secrets stay on the host, injected at egress) |
+| `secrets_policy: manual-interactive` | superseded in-sandbox by credential bindings (`sbx secret set` + first-run approval) — secrets never enter the VM |
+
+Sandbox-first work (any box with Docker Desktop + `sbx`):
+
+1. `sbx kit validate ./kit/omp` — must say VALID.
+2. Template: `docker build --build-arg OMP_VERSION=<pin> -t paddyodab/sbx-omp:<pin> template/`
+   then `docker image save` + `sbx template load` (or push to a registry).
+3. `sbx create ./kit/omp --name <sandbox> <workspace> .` — the omp agent runs in the
+   microVM; `sbx exec <sandbox> -- omp --version` matches the pin.
+4. Per-domain behavior = mixins stacked with `--kit` (`kit/mixins/<domain>/`), forged when
+   a real domain demands one (forge before abstract).
+
+Proven (unit sandbox-kit-01, `.evidence/sandbox-kit-01/`): template build with in-image
+pin gate; kit VALID under sbx v0.43.0 (schema v2); live `sbx create` smoke 8/8 checks —
+omp pinned, skills + AGENTS block landed, kit args rendered, credentials proxy-sentinels,
+agentInstructions present; `omp --print` transport OK, auth absent by design (proxy
+binding is the auth path, configured on first real run).
+
 ## Proven
 
 - Junk-HOME machine install ×N: skills ×3 symlinked both bases, AGENTS block, scaffold

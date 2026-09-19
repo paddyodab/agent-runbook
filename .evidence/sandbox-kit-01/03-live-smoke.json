@@ -1,0 +1,21 @@
+{
+  "unit": "sandbox-kit-01",
+  "artifact": "live sandbox smoke (sbx create from kit dir)",
+  "command": "sbx create ./kit/omp --name omp-kit-smoke ~/sandbox-agents/omp-kit-smoke .",
+  "result": "ok",
+  "sandbox": {"agent": "omp", "image": "paddyodab/sbx-omp:18.2.0", "cpus": 16, "mem": "15.3GiB"},
+  "checks": [
+    {"check": "omp pinned inside sandbox", "observed": "omp/18.2.0", "pass": true},
+    {"check": "4 skills present at ~/.omp/agent/skills/", "observed": "bro-mode, eng-playbooks, fan-out-lanes, turborepo", "pass": true},
+    {"check": "AGENTS.md marked block present", "observed": "grep count 1 (BLOCK:BEGIN:agent-runbook)", "pass": true},
+    {"check": "deps gh/glow/jq", "observed": "gh 2.46.0, glow (source), jq 1.8.1", "pass": true},
+    {"check": "kit args rendered", "observed": "OMP_VERSION=18.2.0 RUNBOOK_ADAPTER=none", "pass": true},
+    {"check": "credentials are proxy sentinels", "observed": "GH_TOKEN=proxy-managed, OMP_API_KEY=proxy-managed, SHORTCUT_API_TOKEN=proxy-managed; SBX_CRED_*-MODE=none (no binding configured — expected for required:false)", "pass": true},
+    {"check": "agentInstructions rendered", "observed": "'# agent-runbook behavior (sandbox kit)' block present at line 353 of the sandbox-owned profile file (/home/patdabney/sandbox-agents/AGENTS.md inside the VM — filename resolved relative to workspace parent; see open-question note)", "pass": true},
+    {"check": "omp --print model round-trip", "observed": "correctly failed with 'no auth configured' listing ANTHROPIC_API_KEY/OPENAI_API_KEY/GEMINI_API_KEY options — transport works, auth intentionally absent (secrets policy: proxy-injected only with a binding)", "pass": true}
+  ],
+  "open_questions": [
+    "agentInstructions.filename lands at <workspace-parent>/AGENTS.md inside the VM (observed), not in the workspace mount — verify the doc-stated location convention; harmless for omp since ~/.omp/agent/AGENTS.md (kit files) is the load-bearing profile",
+    "credential bindings not yet configured (sbx create warned); first interactive run with real tokens will prompt to approve and record bindings"
+  ]
+}
