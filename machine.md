@@ -148,7 +148,9 @@ Permissions (boring Unix; proven in `.evidence/shared-comms-01/04`):
 
 Deprovision to provision (order matters):
 
-1. **EC2**: Ubuntu LTS, small (t3.micro class is plenty; this is I/O-light). Security
+1. **EC2**: Ubuntu LTS, small — t3.small class (t3.micro's 1 GiB is fragile with two
+   simultaneous omp agents + herdr servers; treat size as an observed capacity decision
+   after a two-user session, not a permanent architecture). This is I/O-light. Security
    group: SSH (22) from known IPs only — nothing else needs ingress.
 2. **Users + group**:
    ```bash
@@ -211,14 +213,22 @@ old address; new appends key on the new one).
 Session protocol on the box (what changes for the users): `cd /srv/<slug>` first;
 `./comms/session-start.sh` keys sessions to your OS user automatically
 (`comms/<user>/<YYYYMMDD>-<NN>/`). Canonical state is CROSS-USER: newest sealed handoff
-anywhere in `comms/` is what the next session resumes from. Ledger is per-user; a
+anywhere in `comms/` is what the next session resumes from — ordered by DATE-SEQ across
+users, never by user name (same date-seq from different users = deterministic user-name
+tie-breaker, documented in comms/README.md; NOT chronology). Ledger is per-user; a
 cross-user seal writes the digest to the SEALING user's ledger. Smoke (both users):
 fresh start → intro names `comms/<user>/<today>-01`; the OTHER user can still
 fresh-start while yours is open; bare seal with no session of your own refuses naming
 the prefixed salvage command.
 
+Acceptance on the host: `./comms-lifecycle-test.sh /srv/<slug>` — 18 assertions
+(incl. the cross-user CHRONOLOGY scenario: a late-alphabet user's older handoff must
+lose to an early-alphabet user's newer one — the path-sort regression the pre-AWS
+probe caught). If seeding from an existing folder instead of fresh scaffolding, run
+`./migrate-user-comms.sh /srv/<slug>` first.
+
 Protocol proofs: `./comms-lifecycle-test.sh <enclosing-folder>` (two fake users,
-14 assertions; green on bash 5.3 host and stock bash 3.2 in docker), evidence in
+18 assertions; green on bash 5.3 host and stock bash 3.2 in docker), evidence in
 `.evidence/shared-comms-01/`.
 
 Not covered here (deliberate): S3/IAM/snowflake access patterns from the box
