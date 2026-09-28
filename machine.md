@@ -148,10 +148,19 @@ Permissions (boring Unix; proven in `.evidence/shared-comms-01/04`):
 
 Deprovision to provision (order matters):
 
-1. **EC2**: Ubuntu LTS, small — t3.small class (t3.micro's 1 GiB is fragile with two
+**Decisions (answered 2026-09-28):** region **us-east-1**; remote entry = **company VPN**
+(same pattern as the established accounts: a vpn security group attached to the instance,
+source = the VPN's egress CIDR — one rule, no per-laptop IPs); **devops owns root MFA**
+(and, by the same pattern, instance + sg attachment + budget alert); backups stay
+**experimental-simple**: EBS snapshots, S3 sync offered as an optional spin-off/export,
+prod-grade ceremony (audit logging, restore drills, nightly S3) deferred until this
+survives two real users.
+
+1. **EC2**: us-east-1, Ubuntu LTS, t3.small class (t3.micro's 1 GiB is fragile with two
    simultaneous omp agents + herdr servers; treat size as an observed capacity decision
    after a two-user session, not a permanent architecture). This is I/O-light. Security
-   group: SSH (22) from known IPs only — nothing else needs ingress.
+   group: TCP 22 only, source = the VPN security group/CIDR devops uses in the other
+   accounts. No HTTP/S, no database, no public application endpoint.
 2. **Users + group**:
    ```bash
    sudo addgroup shared
@@ -248,7 +257,12 @@ Protocol proofs: `./comms-lifecycle-test.sh <enclosing-folder>` (two fake users,
 18 assertions; green on bash 5.3 host and stock bash 3.2 in docker), evidence in
 `.evidence/shared-comms-01/`.
 
-Not covered here (deliberate): S3/IAM/snowflake access patterns from the box
-(work-specific; the spec lives in artifacts/ — named-file access only); omp-remote
-(separate project); anything fancier than SSH+users+group (the primitive is proven;
-justify additions against a real shortfall).
+Not covered here (deliberate): **S3 as the live filesystem** — the comms protocol is
+POSIX (find/grep/mv/awk, setgid, chmod, OS-user attribution) and an object store has
+none of that (Mountpoint-for-S3 drops the metadata the protocol relies on); the box +
+EBS gives POSIX semantics for free, and "spin off a shared context" =
+`aws s3 sync /srv/<slug>/comms/ s3://<bucket>/<slug>/` as an optional export command.
+EBS snapshots are the experimental-simple backup; nightly S3, restore drills, and
+audit logging wait until this survives two real users. Also out: omp-remote (separate
+project), Kubernetes/EFS/RDS/web UI (V0 out of scope), anything fancier than
+SSH+users+group (the primitive is proven; justify additions against a real shortfall).
