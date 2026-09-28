@@ -192,6 +192,30 @@ fi
 
 # 3. Scaffold (copy, exec bit — only if ~/.local/bin exists and is on PATH;
 #    refuse to clobber a foreign file, replace our own prior install atomically)
+MIGRATE_SRC="$HERE/migrate-user-comms.sh"
+MIGRATE_DST="${HOME}/.local/bin/migrate-user-comms.sh"
+if [ "$DOCTOR" != "1" ] && [ -x "$MIGRATE_SRC" ] && [ -d "${HOME}/.local/bin" ]; then
+  case ":$PATH:" in
+    *":${HOME}/.local/bin:"*)
+      if [ -L "$MIGRATE_DST" ]; then
+        rm "$MIGRATE_DST"
+      elif [ -e "$MIGRATE_DST" ]; then
+        if ! cmp -s "$MIGRATE_DST" "$MIGRATE_SRC"; then
+          echo "REFUSED: $MIGRATE_DST exists and differs from this repo's copy." >&2
+          echo "  Reconcile, then re-run. Refusing to overwrite." >&2
+          exit 1
+        fi
+      fi
+      tmp_mig="$(mktemp)"
+      cat "$MIGRATE_SRC" > "$tmp_mig"
+      chmod 755 "$tmp_mig"
+      mv "$tmp_mig" "$MIGRATE_DST"
+      installed="$installed
+  $MIGRATE_DST (migrator installed)"
+      ;;
+  esac
+fi
+
 if [ "$DOCTOR" != "1" ] && [ -x "$SCAFFOLD_SRC" ] && [ -d "${HOME}/.local/bin" ]; then
   case ":$PATH:" in
     *":${HOME}/.local/bin:"*)
