@@ -180,6 +180,23 @@ Deprovision to provision (order matters):
    ./install.sh --machine && ./install.sh --doctor --machine
    ```
    Each user gets their own `~/.omp` (omp credentials in agent.db are per-user).
+
+   **Model auth — GitHub Copilot (per-user, device flow):** as each user, on the box:
+   ```bash
+   omp login github-copilot   # prints URL + device code; complete it in a browser
+                              # on YOUR laptop (github.com/login/device) — no browser
+                              # needed on the box itself
+   omp usage                  # verify: shows the authenticated account + limits
+   ./install.sh --doctor --machine   # re-run for a clean bill
+   ```
+   Each user logs in with their OWN GitHub account holding a Copilot seat
+   (attribution + offboarding = seat management). Two omp homes, one shared
+   omp install — never a shared credential store. If org policy DENIES the
+   integration ids omp uses (403), an org admin must allow `copilot-chat` or
+   `copilot-developer-cli` (`COPILOT_INTEGRATION_ID` pins one). If seat pooling
+   is ever a hard requirement, omp's `auth-broker`/`auth-gateway` (credential
+   vault + forward proxy, `OMP_AUTH_BROKER_URL`) is the designed path — but it
+   adds a service; per-user seats avoid it.
 6. **Keep herdr servers alive after SSH logout** (per user):
    ```bash
    sudo loginctl enable-linger pd && sudo loginctl enable-linger dw
