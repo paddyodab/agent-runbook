@@ -104,17 +104,6 @@ live in a fresh session. If all pass, the agent behaves; no prior context needed
 For the machine/fresh-box path, the equivalent is `./sandbox-test.sh` (docker) plus the
 machine checks in [machine.md](machine.md).
 
-## Shared-context box (multi-user)
-
-For one box shared by several users over SSH/herdr (AWS or any Linux server):
-the comms protocol is **user-keyed** — `comms/<user>/<YYYYMMDD>-<NN>/` — with a
-cross-user canonical state (newest sealed handoff anywhere wins). See
-[machine.md](machine.md) for the deployment runbook (users + group + setgid, per-user
-herdr servers + linger, rsync seeding, laptop `herdr machine add`).
-Protocol proofs: `./comms-lifecycle-test.sh <enclosing-folder>` (two fake users,
-14 assertions; green on bash 5.3 and stock bash 3.2), evidence in
-`.evidence/shared-comms-01/`.
-
 ## Conventions
 
 - This repo is self-contained by rule. Improvements land here first, then re-install.
