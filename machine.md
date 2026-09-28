@@ -197,6 +197,17 @@ Deprovision to provision (order matters):
    connection failure does not prove a mutation was not applied — inspect remote state
    before retrying.
 
+Migrating EXISTING enclosing folders (work laptop, old folders): run the migration
+script once per folder —
+```bash
+./migrate-user-comms.sh <enclosing-folder>   # or run inside the folder with no arg
+```
+It moves flat pre-fork sessions into `comms/<user>/`, replaces stale single-user
+scripts with the current ones (extracted from this repo's scaffold), stamps
+missing templates, and is idempotent (second run = check-only). Old unsealed drafts
+stay drafts; ledgers are NOT rewritten (absolute-path keyed — old digests keep their
+old address; new appends key on the new one).
+
 Session protocol on the box (what changes for the users): `cd /srv/<slug>` first;
 `./comms/session-start.sh` keys sessions to your OS user automatically
 (`comms/<user>/<YYYYMMDD>-<NN>/`). Canonical state is CROSS-USER: newest sealed handoff

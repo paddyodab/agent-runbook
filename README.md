@@ -112,6 +112,8 @@ canonical state (newest sealed handoff anywhere wins). Deployment runbook: the
 "Shared-context box" section of [machine.md](machine.md). Protocol proofs:
 `./comms-lifecycle-test.sh <enclosing-folder>` (two fake users, 14 assertions; green on
 bash 5.3 and stock bash 3.2), evidence in `.evidence/shared-comms-01/`.
+Existing folders migrate with `./migrate-user-comms.sh <enclosing-folder>` (idempotent:
+moves flat sessions to `comms/<user>/`, refreshes scripts+templates from the scaffold).
 
 ## Conventions
 
