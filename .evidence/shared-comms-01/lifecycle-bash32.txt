@@ -1,0 +1,26 @@
+== 1. u1 fresh start
+  PASS: u1 fresh start creates comms/u1/<today>-01
+  PASS: intro names u1's session folder
+== 2. u2 fresh start while u1 unsealed (per-user guard)
+  PASS: u2 fresh start succeeds while u1 unsealed
+== 3. u1 fresh again (own unsealed guard)
+  PASS: u1 own-unsealed guard fires
+== 4. u1 --resume reopens own folder
+  PASS: u1 --resume reopens own session
+== 5. u1 seal incomplete → refused with section names
+  PASS: incomplete seal refused
+== 6. fill u1 handoff + seal
+  PASS: u1 sealed (marker gone)
+  PASS: ledger digest appended
+== 7. u2 fresh start resumes from u1's sealed handoff
+  PASS: cross-user resume from u1 sealed handoff
+== 8. cross-user seal: u1 seals u2's draft
+  PASS: u2 draft sealed by u1 (explicit prefixed arg)
+== 9. bad names refused
+  PASS: templates refused
+  PASS: multi-slash name refused
+  PASS: --resume refused in session-end
+== 10. bare seal, caller has no session → refuse naming salvage
+  PASS: bare seal refuses for empty user
+
+== RESULTS: 14 pass, 0 fail ==

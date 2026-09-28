@@ -1,0 +1,11 @@
+{
+  "unit": "shared-comms-01",
+  "captured": "2026-09-28T13:26:55.804503",
+  "byte_parity_live_vs_scaffold": {
+    "comms/session-start.sh": true,
+    "comms/session-end.sh": true,
+    "comms/README.md": true,
+    "AGENTS.md (body after slug heading)": true
+  },
+  "note": "cmp -s exit codes; scaffold freshly stamped from work/agent-runbook/scaffold/new-enclosing-folder.sh"
+}

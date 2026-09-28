@@ -1,0 +1,4 @@
+=== pd creates session, dw seals it (cross-user, group-writable):
+session-end: handoff incomplete:
+  ## How to resume (empty) ## Open problems / decisions needed (empty) ## Do not (empty)
+refusal-observed (incomplete = fence works cross-user)

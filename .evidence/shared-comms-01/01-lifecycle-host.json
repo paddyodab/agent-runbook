@@ -1,0 +1,15 @@
+{
+  "unit": "shared-comms-01",
+  "date": "2026-09-28T13:26:41.587942",
+  "host_lifecycle": {
+    "pass": true,
+    "assertions": 14,
+    "detail": "== 1. u1 fresh start\n  PASS: u1 fresh start creates comms/u1/<today>-01\n  PASS: intro names u1's session folder\n== 2. u2 fresh start while u1 unsealed (per-user guard)\n  PASS: u2 fresh start succeeds while u1 unsealed\n== 3. u1 fresh again (own unsealed guard)\n  PASS: u1 own-unsealed guard fires\n== 4. u1 --resume reopens own folder\n  PASS: u1 --resume reopens own session\n== 5. u1 seal incomplete \u2192 refused with section names\n  PASS: incomplete seal refused\n== 6. fill u1 handoff + seal\n  PASS: u1 sealed (marker gone)\n  PASS: ledger digest appended\n== 7. u2 fresh start resumes from u1's sealed handoff\n  PASS: cross-user resume from u1 sealed handoff\n== 8. cross-user seal: u1 seals u2's draft\n  PASS: u2 draft sealed by u1 (explicit prefixed arg)\n== 9. bad names refused\n  PASS: templates refused\n  PASS: multi-slash name refused\n  PASS: --resume refused in session-end\n== 10. bare seal, caller has no session \u2192 refuse naming salvage\n  PASS: bare seal refuses for empty user\n\n== RESULTS: 14 pass, 0 fail ==\n"
+  },
+  "byte_parity_live_vs_scaffold": {
+    "comms/session-start.sh": true,
+    "comms/session-end.sh": false,
+    "comms/README.md": true,
+    "AGENTS.md (body after slug heading)": true
+  }
+}

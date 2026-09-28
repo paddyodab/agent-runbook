@@ -1,0 +1,12 @@
+{
+  "unit": "shared-comms-01",
+  "captured": "2026-09-28T13:27:14.668422",
+  "environment": "bash:3.2 docker, TWO REAL OS USERS (pd uid1001, dw uid1002) + shared group + setgid dirs",
+  "results": {
+    "pd_creates_session": "comms/pd/20260928-01 stamped from templates",
+    "dw_creates_session": "comms/dw/20260928-01 stamped (pd's open session never blocked dw)",
+    "group_readable": "dw lists pd's session files",
+    "cross_user_seal_fence": "dw sealing pd's incomplete handoff REFUSED with named sections (fence works cross-user)"
+  },
+  "detail": "=== pd creates session, dw seals it (cross-user, group-writable):\nsession-end: handoff incomplete:\n  ## How to resume (empty) ## Open problems / decisions needed (empty) ## Do not (empty)\nrefusal-observed (incomplete = fence works cross-user)\n"
+}
