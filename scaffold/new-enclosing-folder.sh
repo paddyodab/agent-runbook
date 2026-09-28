@@ -539,9 +539,20 @@ if [[ -n "$arg" ]]; then
     *) die "'$arg' is not a session folder name (want <user>/<YYYYMMDD>-<NN>, e.g. dw/20260908-02)" ;;
   esac
 fi
-SESS_DIR="$COMMS/$SESS_USER/${arg:-}"
-if [[ -n "$arg" ]] && [[ ! -d "$SESS_DIR" ]]; then
-  die "no comms/$SESS_USER/$arg folder — usage: $0 [<user>/<YYYYMMDD>-<NN>]"
+SESS_DIR=""
+if [[ -n "$arg" ]]; then
+  SESS_DIR="$COMMS/$SESS_USER/$arg"
+  if [[ ! -d "$SESS_DIR" ]]; then
+    # Legacy fallback: a bare <date-seq> may name a pre-fork FLAT session folder
+    # (comms/<date-seq>, no user level) — the enclosing folder's own sessions made
+    # before the user-keyed layout. Try that before refusing, so old drafts stay
+    # sealable with their original name.
+    if [[ "$SESS_USER" == "$USER_NAME" && -d "$COMMS/$arg" ]]; then
+      SESS_DIR="$COMMS/$arg"
+    else
+      die "no comms/$SESS_USER/$arg folder — usage: $0 [<user>/<YYYYMMDD>-<NN>]"
+    fi
+  fi
 fi
 
 TODAY="$(date +%Y%m%d)"
@@ -550,6 +561,14 @@ while IFS= read -r d; do todays+=("$d"); done \
   < <({ find "$USER_COMMS" -mindepth 1 -maxdepth 1 -type d -name "$TODAY-*" 2>/dev/null || true; } | sort)
 if [[ -z "$arg" ]]; then
   if [[ ${#todays[@]} -eq 0 ]]; then
+    # Legacy fallback: folders created BEFORE the user-keyed layout (this enclosing
+    # folder's own pre-fork sessions) live flat at comms/<date-seq>. If the caller
+    # has none in the new layout but a flat unsealed draft exists, salvage THAT —
+    # refusing here would strand it with no working command.
+    FLAT_TODAY=""
+    if [[ -d "$COMMS/$TODAY-01" && -f "$COMMS/$TODAY-01/session-handoff.md" ]]; then
+      FLAT_TODAY="$COMMS/$TODAY-01"
+    fi
     DRAFT_CAND=""
     while IFS= read -r f; do
       # keep overwriting: sorted ascending, so the last unsealed draft = newest
@@ -557,11 +576,18 @@ if [[ -z "$arg" ]]; then
     done < <({ find "$COMMS" -mindepth 3 -maxdepth 3 -name session-handoff.md 2>/dev/null || true; } | grep -v "$COMMS/templates/" | sort)
     if [[ -n "$DRAFT_CAND" ]]; then
       DRAFT_REL="$(printf '%s' "$DRAFT_CAND" | sed "s|^$COMMS/||; s|/session-handoff.md||")"
-      die "no session folder from today ($TODAY-*) under comms/$USER_NAME/ — the newest unsealed draft is comms/$DRAFT_REL; salvage it with ./comms/session-end.sh $DRAFT_REL, or delete the folder to discard it"
+      case "$DRAFT_REL" in
+        */*) die "no session folder from today ($TODAY-*) under comms/$USER_NAME/ — the newest unsealed draft is comms/$DRAFT_REL; salvage it with ./comms/session-end.sh $DRAFT_REL, or delete the folder to discard it" ;;
+        *)   # flat pre-fork draft: seal it directly (the caller is its user)
+             SESS_DIR="$COMMS/$DRAFT_REL" ;;
+      esac
+    elif [[ -n "$FLAT_TODAY" ]]; then
+      SESS_DIR="$FLAT_TODAY"
+    else
+      die "no session folder from today ($TODAY-*) under comms/$USER_NAME/ — nothing newer to seal; if an older session was left unsealed, name it explicitly: ./comms/session-end.sh <user>/<YYYYMMDD>-<NN>"
     fi
-    die "no session folder from today ($TODAY-*) under comms/$USER_NAME/ — nothing newer to seal; if an older session was left unsealed, name it explicitly: ./comms/session-end.sh <user>/<YYYYMMDD>-<NN>"
   fi
-  SESS_DIR="${todays[$(( ${#todays[@]} - 1 ))]}"
+  [[ -n "${SESS_DIR:-}" ]] || SESS_DIR="${todays[$(( ${#todays[@]} - 1 ))]}"
 fi
 SESS_REL="$(printf '%s' "$SESS_DIR" | sed "s|^$COMMS/||")"
 SESS="$SESS_REL"
