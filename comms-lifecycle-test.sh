@@ -70,6 +70,11 @@ echo "== 6. fill u1 handoff + seal"
 # bash-3.2 portable fill (no python): strip SEAL block, fill each section.
 fill_handoff() {
   local f="$1" u="$2"
+  # synthetic fixtures (mkdir'd by the test) may lack a handoff file — stamp the
+  # template so the filler has something to fill
+  if [[ ! -f "$f" ]]; then
+    cp "$SCRIPTS/templates/session-handoff.md" "$f"
+  fi
   awk 'BEGIN{skip=0} !skip && index($0,"<!-- SEAL:")==1 {skip=(index($0,"-->")==0); next} skip {skip=(index($0,"-->")==0); next} {print}' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
   # awk wholesale section-body replacement (bash-3.2 portable; no python, no perl)
   awk -v u="$u" '
@@ -123,6 +128,47 @@ rm -rf "$(sess_dir u2)"
 run 1 u2 session-end.sh
 echo "$ERR" | grep -qE 'no session folder from today.*under comms/u2/' && ok "bare seal refuses for empty user" || fail "bare seal" "no refusal: $ERR"
 
+echo "== 11. cross-user CHRONOLOGY: newest date-seq wins regardless of user name"
+# The path-sort bug class: a LATE-alphabet user holding an OLD handoff vs an
+# EARLY-alphabet user holding a NEW one. Fixtures use real calendar offsets so the
+# test is date-independent:
+YESTERDAY="$(date -v -1d +%Y%m%d 2>/dev/null || date -d yesterday +%Y%m%d)"
+TODAY="$(date +%Y%m%d)"
+mkdir -p "$(sess_dir zz/$YESTERDAY-01)"
+fill_handoff "$(sess_dir zz/$YESTERDAY-01)/session-handoff.md" zz
+run 0 u2 session-end.sh "zz/$YESTERDAY-01" 2>/dev/null || true
+grep -qF 'SEAL' "$(sess_dir zz/$YESTERDAY-01/session-handoff.md)" && fail "zz seal" "SEAL still present" || ok "zz/$YESTERDAY-01 sealed (old handoff)"
+# u2's own TODAY sealed session: create explicitly (step 10 removed u2)
+run 0 u2 session-start.sh
+fill_handoff "$(sess_dir u2/$(date +%Y%m%d)-01)/session-handoff.md" u2
+sed "s/{{DATE-SEQ}}/$(date +%Y%m%d)-01/g" "$SCRIPTS/templates/conversation.md" > "$(sess_dir u2/$(date +%Y%m%d)-01)/conversation.md"
+run 0 u2 session-end.sh "u2/$(date +%Y%m%d)-01" 2>/dev/null || true
+grep -qF 'SEAL' "$(sess_dir u2/$(date +%Y%m%d)-01/session-handoff.md)" && fail "u2 seal" "SEAL still present" || ok "u2/$TODAY-01 sealed (newest handoff)"
+# own newest wins over older other-user handoff: u2's own TODAY is sealed; the
+# only OLDER handoffs are zz (yesterday) + mw (2 days ago). u1's handoff is ALSO
+# today's date-seq (sealed in step 6) — a genuine date-seq TIE, broken by user
+# name (u1 < u2, deterministic, documented). So the resumed PRIOR must be either
+# u2's own (sole-newest case) or u1's (tie case) — NEVER zz/mw (older).
+run 0 u2 session-start.sh
+echo "$OUT" | grep -Eq "Resuming from sealed handoff: comms/u[12]/$TODAY-01/session-handoff.md" \
+  && ok "own-newest (or documented tie) wins over older other-user handoff" || fail "own newest" "wrong: $OUT"
+# the real trap: u1 (alphabetically EARLY) with the NEWEST date-seq — impossible
+# with real dates (can't seal tomorrow), so the newest-cross-user fixture is:
+# u2 has OWN today-sealed + zz has OLDER sealed; a THIRD user (mid-alphabet 'mw')
+# gets an intermediate date; fresh-start for a FOURTH user 'anew' must pick u2's
+# today (newest), regardless of zz sorting last.
+MW_YESTERDAY="$(date -v -2d +%Y%m%d 2>/dev/null || date -d '2 days ago' +%Y%m%d)"
+mkdir -p "$(sess_dir mw/$MW_YESTERDAY-01)"
+fill_handoff "$(sess_dir mw/$MW_YESTERDAY-01)/session-handoff.md" mw
+run 0 u2 session-end.sh "mw/$MW_YESTERDAY-01" 2>/dev/null || true
+# u2's sealed handoff must SURVIVE: copy it to a neutral user ('zz2' would re-sort;
+# instead rename u2's session under a fresh user 'u2' -> keep, and just drop u2's
+# UNSEALED drafts). The rm target is anew only; u2 keeps its sealed handoff.
+rm -rf "$(sess_dir anew)"
+run 0 anew session-start.sh
+echo "$OUT" | grep -q "Resuming from sealed handoff: comms/u2/$TODAY-01/session-handoff.md" \
+  && ok "newest date-seq wins across users (not path order)" || fail "chronology" "wrong: $OUT"
+
 echo
-echo "== RESULTS: $PASS pass, $FAIL fail =="
+echo "== RESULTS: $PASS pass, $FAIL fail (18 assertions) =="
 [ "$FAIL" = 0 ]

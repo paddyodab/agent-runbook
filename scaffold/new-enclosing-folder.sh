@@ -193,8 +193,11 @@ comms/
   `comms/dw/20260810-01`, `comms/pd/20260810-02`). `session-start.sh` derives both the
   user and the sequence automatically.
 - The canonical handoff chain is CROSS-USER: the newest sealed `session-handoff.md`
-  anywhere under `comms/` is the state the next session resumes from. Never edit a past
-  handoff in place — write a new one in your own new session's folder.
+  anywhere under `comms/` is the state the next session resumes from. Ordering is by
+  DATE-SEQ across users, never by user name; two sessions with the SAME date-seq
+  from different users are a genuine tie, broken deterministically by user name
+  (after date-seq equality — this is a tie-breaker, NOT chronology). Never edit a
+  past handoff in place — write a new one in your own new session's folder.
 - On a shared box, file ownership must not block the protocol: the group needs rwX on
   `comms/` (setgid dirs + `umask 002`), so either user can create/seal sessions. See the
   enclosing folder's README/deployment notes for the group setup.
@@ -395,26 +398,42 @@ fi
 SESS="$USER_NAME/$SESS_REL"
 
 # --- resolve the sealed handoff to resume from ----------------------------------
-# Our own folder's draft never counts. Newest sealed wins (ordered by date-seq across
-# users); unsealed drafts are skipped — a session that died mid-handoff must not
-# poison the next session's context. With no sealed handoff at all, say so instead
-# of guessing.
+# Our own folder's draft never counts. Newest sealed wins — ordered by DATE-SEQ
+# across users (a plain path sort would order user-first, letting an older handoff
+# from a late-alphabet user beat a newer one; regression-tested in the lifecycle
+# suite's different-date scenario). Unsealed drafts are skipped — a session that
+# died mid-handoff must not poison the next session's context. With no sealed
+# handoff at all, say so instead of guessing.
 handoffs=()
-while IFS= read -r f; do handoffs+=("$f"); done \
-  < <({ find "$COMMS" -mindepth 3 -maxdepth 3 -name session-handoff.md 2>/dev/null || true; } | grep -v "$COMMS/templates/" | sort)
+while IFS= read -r line; do handoffs+=("$line"); done \
+  < <({ find "$COMMS" -mindepth 3 -maxdepth 3 -name session-handoff.md 2>/dev/null || true; } \
+       | grep -v "$COMMS/templates/" \
+       | sed "s|$COMMS/||; s|/session-handoff.md$||" \
+       | awk -F/ '{ printf "%s\t%s/%s\n", $2, $1, $2 }' | sort)
+# handoffs entries: "<date-seq>\t<user>/<date-seq>" — sorted by date-seq first;
+# same date-seq from different users is a genuine tie: broken by user name (only
+# AFTER date-seq equality — this is a deterministic tie-breaker, NOT chronology;
+# documented in comms/README.md "Canonical state").
+REL_FROM_ENTRY() { printf '%s' "${1#*$'\t'}"; }
 
 PREV_SEALED=""
 DRAFT=""
+OWN_REL="$USER_NAME/"
 ALL_BUT_OWN=()
-for f in ${handoffs[@]+"${handoffs[@]}"}; do
-  [[ "$f" == "$SESS_DIR/session-handoff.md" ]] || ALL_BUT_OWN+=("$f")
+for line in ${handoffs[@]+"${handoffs[@]}"}; do
+  rel="$(REL_FROM_ENTRY "$line")"
+  [[ "$rel" == "$SESS_DIR/session-handoff.md" || "$COMMS/$rel" == "$SESS_DIR/session-handoff.md" ]] && continue
+  [[ "$rel" == "$USER_NAME/"* ]] && continue   # our own folder's drafts never count
+  ALL_BUT_OWN+=("$rel")
 done
 if (( ${#ALL_BUT_OWN[@]} )); then
-  NEWEST="${ALL_BUT_OWN[$(( ${#ALL_BUT_OWN[@]} - 1 ))]}"
+  NEWEST_REL="${ALL_BUT_OWN[$(( ${#ALL_BUT_OWN[@]} - 1 ))]}"
+  NEWEST="$COMMS/$NEWEST_REL/session-handoff.md"
   if grep -qF "$SEAL" "$NEWEST"; then
     DRAFT="$NEWEST"
-    for f in "${ALL_BUT_OWN[@]:0:$(( ${#ALL_BUT_OWN[@]} - 1 ))}"; do
-      grep -qF "$SEAL" "$f" || PREV_SEALED="$f"
+    # newest sealed strictly BEFORE the newest entry (by date-seq order)
+    for rel in "${ALL_BUT_OWN[@]:0:$(( ${#ALL_BUT_OWN[@]} - 1 ))}"; do
+      grep -qF "$SEAL" "$COMMS/$rel/session-handoff.md" || PREV_SEALED="$COMMS/$rel/session-handoff.md"
     done
     if [[ -n "$PREV_SEALED" ]]; then
       echo "warning: newest handoff is an unsealed draft — resuming from the newest sealed handoff instead:" >&2
@@ -427,8 +446,8 @@ fi
 
 # --- print the intro ------------------------------------------------------------
 NEWEST_ALL=""
-if (( ${#handoffs[@]} )); then NEWEST_ALL="${handoffs[$(( ${#handoffs[@]} - 1 ))]}"; fi
-if [[ "$RESUME" == "--resume" && "$SESS_DIR/session-handoff.md" == "$NEWEST_ALL" ]] \
+if (( ${#handoffs[@]} )); then NEWEST_ALL="$(REL_FROM_ENTRY "${handoffs[$(( ${#handoffs[@]} - 1 ))]}")"; fi
+if [[ "$RESUME" == "--resume" && "$SESS_DIR/session-handoff.md" == "$COMMS/$NEWEST_ALL/session-handoff.md" ]] \
    && [[ -f "$SESS_DIR/session-handoff.md" ]] && ! grep -qF "$SEAL" "$SESS_DIR/session-handoff.md"; then
   # resumed the newest session and it is already sealed: its own handoff IS the
   # canonical state (pointing at an older sealed handoff here would step backwards)
