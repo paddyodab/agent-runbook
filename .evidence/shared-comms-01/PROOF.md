@@ -36,6 +36,15 @@ mirror + one test harness. Operator watching in-session.
 - Harness's own handoff-filler is bash-3.2 portable (awk state machine, no python)
   so the same harness proves both interpreters.
 
+## Post-bundle fix (2f3b1ca)
+The bash-3.2 run surfaced one more real bug AFTER artifacts 01-04 were captured:
+SESS_DIR was pre-assigned `"$COMMS/$SESS_USER/"` on the bare-seal path, shadowing the
+`todays[last]` fallback (nonempty guard never replaced it) → `missing comms/u1//session-handoff.md`.
+Fixed by initializing SESS_DIR="" and assigning only in decided branches; re-spliced
+into the scaffold; parity cmp re-proved green; lifecycle 14/14 re-run on BOTH
+interpreters. Also added: legacy flat-layout salvage (`./comms/session-end.sh <date-seq>`
+seals a pre-fork flat folder) — this folder's own session predates the fork and needed it.
+
 ## Verdict
 PASS. Open item carried (operator-time, not code): artifacts/ sensitivity on the
 shared box — group-readable by design; laptop-only material must be named before
