@@ -88,6 +88,32 @@ for f in session-start.sh session-end.sh; do
 done
 bash -n "$TMPDIR_M/session-start.sh" && bash -n "$TMPDIR_M/session-end.sh" \
   || die "extracted scripts fail syntax check — scaffold drift; refusing to install"
+# AGENTS.md refresh: the standing rules (incl. the two-workers/one-repo worktree rule)
+# live in the scaffold heredoc; an old folder's AGENTS.md drifts as the runbook evolves.
+# Refresh the body (everything after the slug heading), keeping the folder's own heading.
+AGENTS_F="$TARGET/AGENTS.md"
+AG_START="$(awk '/cat > "\$STAGE\/AGENTS.md"/ {print NR; exit}' "$SCAFFOLD")"
+[[ -n "$AG_START" ]] || die "scaffold AGENTS heredoc marker not found"
+awk -v n="$AG_START" 'NR>n { print }' "$SCAFFOLD" \
+  | awk 'BEGIN{done=0} !done && /^AGENTS_EOF$/ {done=1; exit} !done { print }' > "$TMPDIR_M/AGENTS.md"
+if [[ ! -s "$TMPDIR_M/AGENTS.md" ]]; then
+  die "extracted AGENTS.md is empty — scaffold drift"
+fi
+if [[ ! -f "$AGENTS_F" ]]; then
+  cp "$TMPDIR_M/AGENTS.md" "$AGENTS_F"
+  echo "AGENTS.md stamped (was missing)"
+else
+  # compare bodies: line 1 is the slug heading (may legitimately differ)
+  if ! diff <(tail -n +2 "$AGENTS_F") <(tail -n +2 "$TMPDIR_M/AGENTS.md") >/dev/null; then
+    HEAD_LINE="$(head -1 "$AGENTS_F")"
+    { printf '%s\n' "$HEAD_LINE"; tail -n +2 "$TMPDIR_M/AGENTS.md"; } > "$AGENTS_F.new"
+    mv "$AGENTS_F.new" "$AGENTS_F"
+    echo "AGENTS.md body refreshed to current standing rules"
+  else
+    echo "AGENTS.md already current"
+  fi
+fi
+
 TEMPLATES_DIR="$COMMS/templates"
 if [[ ! -f "$TEMPLATES_DIR/session-handoff.md" ]]; then
   extract_tpl() { # <marker-line-number> <out>

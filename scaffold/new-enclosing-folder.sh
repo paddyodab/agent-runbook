@@ -847,11 +847,18 @@ Conventions in force: `README.md` at the folder root (folder purpose, what's tra
 immutable — write new ones. Work lands in the built repos; conversation lands in `comms/`.
 
 Standing access rules: `prior-art/` clones are read-only reference — read named files when
-directed, never scan, never write (a work copy of anything lives at the folder root; parallel
-agent work uses git worktrees of the built repo). Ticket work that changes a studied repo
-clones it to `work/<repo>` at the folder root and edits there. `artifacts/` holds reference material
-(PDFs, decks, exports): open only when the operator or a handoff names the exact file, never
-scan it, never commit it.
+directed, never scan, never write (a work copy of anything lives at the folder root). Ticket
+work that changes a studied repo clones it to `work/<repo>` at the folder root and edits there.
+`artifacts/` holds reference material (PDFs, decks, exports): open only when the operator or a
+handoff names the exact file, never scan it, never commit it.
+
+**Two workers, one repo — never edit the same checkout.** When more than one worker (human or
+agent) may touch a repo under `work/`, each worker FIRST creates their own git worktree from
+the repo root (`git worktree add ../<repo>-<who>-lane`, from the built repo, not prior-art
+clones) and works only inside it — this is standing behavior, not something to remember or
+ask about; check `git worktree list` if unsure who holds which checkout. Merges go through
+the repo's normal flow (PR or merge into the parent checkout), never by editing across
+worktrees; a shared checkout is only safe when it is provably single-worker.
 
 Finish line: when a change is proven (repro gone, tests green), offer the operator the
 push/PR step with exact commands ready — never push without their explicit go, but never
