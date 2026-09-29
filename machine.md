@@ -159,8 +159,17 @@ survives two real users.
 1. **EC2**: us-east-1, Ubuntu LTS, t3.small class (t3.micro's 1 GiB is fragile with two
    simultaneous omp agents + herdr servers; treat size as an observed capacity decision
    after a two-user session, not a permanent architecture). This is I/O-light. Security
-   group: TCP 22 only, source = the VPN security group/CIDR devops uses in the other
-   accounts. No HTTP/S, no database, no public application endpoint.
+   group: TCP 22 only. No HTTP/S, no database, no public application endpoint.
+
+   **SSH source (the decided mechanism, not a generic CIDR):** source =
+   the company VPN's **AWS-managed prefix list** (`pl-gpvpn-pool-subnets`, shared
+   into this account via Resource Access Manager — reference it by ID, never copy
+   CIDRs) attached as the SG rule's source. Two acceptance checks at deploy,
+   because the SG rule alone does not move packets: (a) ROUTE — the VPN's
+   transit-gateway/VPN attachment in the pre-prod VPC actually routes to this
+   subnet both directions (this is exactly the current timeout class); (b) the
+   subnet NACLs allow 22 in / ephemeral out. A correctly configured SG with no
+   route is indistinguishable from a wrong SG until something dials.
 2. **Users + group**:
    ```bash
    sudo addgroup shared
@@ -168,21 +177,31 @@ survives two real users.
    sudo adduser --ingroup shared dw
    ```
 3. **Enclosing folder**: create via the scaffold ON THE BOX (install.sh puts
-   `new-enclosing-folder.sh` on PATH), or rsync an existing folder up. Then:
+   `new-enclosing-folder.sh` on PATH), or rsync an existing folder up.
+4. **Seed content from the work laptop FIRST — while pd still owns the tree**
+   (the "state of the state": Snowflake staging spec, artifacts/, prior-art/):
+   ```bash
+   # ON THE BOX: pd owns /srv/<slug> until step 5; SSH in and rsync as pd
+   rsync -av --exclude '.agent' ~/path/to/local/folder/ pd@<ec2-host>:/srv/<slug>/
+   ```
+   ⚠️ Named-before-sync rule: anything laptop-only must be moved OUT of the folder
+   before the first rsync — artifacts/ becomes group-readable on arrival.
+   (Order matters — the laptop review caught it: applying step 5's root- ownership
+   + read-only reference perms BEFORE seeding would leave pd unable to create
+   files in artifacts/, prior-art/, or the folder root, breaking this transfer.)
+5. **Ownership + permission lockdown, AFTER the seed** (proven in
+   `.evidence/shared-comms-01/04`):
    ```bash
    sudo chown -R root:shared /srv/<slug>
    sudo chmod -R g+rX /srv/<slug>
    sudo find /srv/<slug> -type d -exec chmod g+s {} +
    sudo chmod -R g+w /srv/<slug>/comms /srv/<slug>/work
    ```
-4. **Seed content from the work laptop** (the "state of the state": Snowflake staging
-   spec, artifacts/, prior-art/):
-   ```bash
-   rsync -av --exclude '.agent' ~/path/to/local/folder/ pd@<ec2-host>:/srv/<slug>/
-   ```
-   ⚠️ Named-before-sync rule: anything laptop-only must be moved OUT of the folder
-   before the first rsync — artifacts/ becomes group-readable on arrival.
-5. **Per-user omp + agent-runbook** (as each user):
+   Result: comms/ and work/ are group-writable (the protocol needs it); artifacts/
+   and prior-art/ settle read-only for the group (reference, never a work target);
+   fresh top-level entries require sudo — by design (a new top-level dir is a
+   deliberate layout change, not an accident).
+6. **Per-user omp + agent-runbook** (as each user):
    ```bash
    sudo -iu pd
    git clone <agent-runbook-repo-url> ~/agent-runbook && cd ~/agent-runbook
@@ -206,7 +225,7 @@ survives two real users.
    is ever a hard requirement, omp's `auth-broker`/`auth-gateway` (credential
    vault + forward proxy, `OMP_AUTH_BROKER_URL`) is the designed path — but it
    adds a service; per-user seats avoid it.
-6. **Keep herdr servers alive after SSH logout** (per user):
+7. **Keep herdr servers alive after SSH logout** (per user):
    ```bash
    sudo loginctl enable-linger pd && sudo loginctl enable-linger dw
    # as the user, once: herdr server   (headless; persists across SSH sessions)
@@ -214,7 +233,7 @@ survives two real users.
    VERIFY AT DEPLOY (first-probe item): herdr socket paths are per-user (XDG runtime
    dir). If two users' sockets collide, the per-user isolation assumption is broken —
    check `herdr api status` as each user before declaring the box done.
-7. **From each laptop — connect**:
+8. **From each laptop — connect**:
    ```bash
    herdr machine add       # saves the SSH profile; prepares the remote server
    herdr --remote <target> # interactive attach to the remote herdr server

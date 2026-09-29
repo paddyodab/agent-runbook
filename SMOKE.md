@@ -6,7 +6,7 @@ Machine-mode checks (6–10) apply when the box was set up with `install.sh --ma
 
 | # | Check | Pass when |
 | --- | --- | --- |
-| 1 | **Skills discovered.** Ask the agent: "which skills do you have that mention bro-mode or eng-playbooks?" | bro-mode, eng-playbooks, and fan-out-lanes named; descriptions match this repo. |
+| 1 | **Skills discovered.** Ask the agent: "which skills do you have that mention bro-mode or eng-playbooks?" — then have it READ one: "load skill://eng-playbooks and say which door a refactor walks through." | bro-mode, eng-playbooks, and fan-out-lanes named AND `skill://eng-playbooks` resolves to the full SKILL.md content (filesystem symlinks alone are NOT the contract — the loader must discover them). |
 | 2 | **Chat register holds.** Watch any substantive reply. | Answer first, no preamble/recap/closer, lists ≤5, one next action when open. |
 | 3 | **Mind channel works.** Ask something that needs depth (e.g. "compare two approaches for X"). | Depth lands in a mind note (the current session's `mind/` folder when an enclosing folder exists, else `.mind/`), chat cites it `m:NNN`, chat stays short. |
 | 4 | **Drill-in works (herdr only).** Say "mind" while inside herdr. | A pane opens with the note rendered (glow); "unmind" closes it. Without herdr: the path is given in chat instead. |

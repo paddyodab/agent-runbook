@@ -39,7 +39,9 @@ kit/omp/          — Docker Sandboxes kit (kind: sandbox, schema v2): the sandb
                      credentials, network allow-list, skills + AGENTS block as files;
                      domain mixins land under kit/mixins/<domain>/ when forged
 install.sh        — classic (this tree) and --machine (manifest-driven) modes,
-                     plus --doctor (read-only what's-missing/drifted report)
+                     plus --doctor (read-only: deps/adapter/secrets in machine
+                     mode; skills×2 roots, AGENTS block parity, scaffold/migrator
+                     parity + everything above in machine mode — both modes)
 comms-lifecycle-test.sh — the comms gate: 18-assertion two-fake-user run in a
                      disposable /tmp fixture staged from the named folder's comms/
                      scaffold (live enclosing folders are safe to point at)
@@ -90,7 +92,10 @@ becomes an installation of it (below).
 Your global omp area is a build output, not the agent. `machine.yml` declares what a box
 needs — omp version pin, deps, skills, one ticketing adapter (workplace-owned, not
 repo-owned) — and `install.sh --machine` builds it on any box. `--doctor` reports
-what's missing or drifted without touching anything. [machine.md](machine.md) carries
+what's missing or drifted without touching anything: machine mode checks omp pin +
+runtime deps + adapter + secrets; BOTH modes also check installed state (skills in
+both discovery roots, the AGENTS.md marked block's byte-parity, scaffold + migrator
+parity under ~/.local/bin). [machine.md](machine.md) carries
 the full sequence; [sandbox-test.sh](sandbox-test.sh) proves it in a docker container, and [sbx-test.sh](sbx-test.sh) proves it in a real Docker Sandbox microVM
 before you trust it on real hardware.
 

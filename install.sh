@@ -150,9 +150,12 @@ for base in "$OMP_SKILLS" "$AGENTS_SKILLS"; do
 done
 fi
 
+# 2. AGENTS.md marked block (extracted from this repo's AGENTS.md — never embedded).
+# Extraction runs ALWAYS: the install path uses it to append, doctor mode reuses it
+# as the parity reference for the installed block's drift check.
 if [ "$DOCTOR" != "1" ]; then
-# 2. AGENTS.md marked block (extracted from this repo's AGENTS.md — never embedded)
 mkdir -p "$(dirname "$OMP_AGENTS")"
+fi
 
 tmp_block="$(mktemp)"
 awk -v begin="$BEGIN_MARK" -v end="$END_MARK" '
@@ -172,6 +175,7 @@ if [ "$block_lines" -lt 5 ]; then
   exit 1
 fi
 
+if [ "$DOCTOR" != "1" ]; then
 if [ -f "$OMP_AGENTS" ]; then
   # Remove any previous block (awk state machine, portable), then append fresh.
   tmp_out="$(mktemp)"
@@ -185,9 +189,13 @@ fi
 
 printf '\n' >> "$OMP_AGENTS"
 cat "$tmp_block" >> "$OMP_AGENTS"
-rm -f "$tmp_block"
 installed="$installed
   $OMP_AGENTS (marked block appended/refreshed)"
+fi
+# tmp_block stays alive: doctor mode (2b below) reuses it as the installed-block
+# parity reference; both paths rm it right after their use.
+if [ "$DOCTOR" != "1" ]; then
+  rm -f "$tmp_block"
 fi
 
 # 3. Scaffold (copy, exec bit — only if ~/.local/bin exists and is on PATH;
@@ -315,6 +323,77 @@ if [ "$MODE" = "machine" ] && [ "$ACTIVE_ADAPTER" != "none" ]; then
   done <<EOF3
 $SECRETS_BLOCK
 EOF3
+fi
+
+# 2b. Doctor-only install-state checks (BOTH modes): skills, AGENTS block,
+# scaffold/migrator parity. Classic-mode doctor previously checked nothing and
+# could report a false green on an uninstalled box (laptop assessment concern 2).
+# Purely read-only: test/read/cmp only — doctor must never mutate (2026-09-15
+# doctor-is-provably-read-only rule).
+if [ "$DOCTOR" = "1" ]; then
+  # skills in BOTH roots: native discovery reads ~/.omp/agent/skills, the
+  # agents-md provider reads ~/.agents/skills
+  for dbase in "$OMP_SKILLS" "$AGENTS_SKILLS"; do
+    if [ ! -d "$dbase" ]; then
+      warn="$warn
+  skills: $dbase missing (not installed; run ./install.sh)"
+      continue
+    fi
+    for dskill in $SKILL_DIRS; do
+      ddst="$dbase/$dskill"
+      dsrc="$HERE/skills/$dskill"
+      if [ -L "$ddst" ] && [ "$(readlink "$ddst")" = "$dsrc" ]; then
+        : # correct symlink
+      elif [ -L "$ddst" ]; then
+        warn="$warn
+  skills: $ddst -> $(readlink "$ddst") (drifted; expected $dsrc)"
+      elif [ -e "$ddst" ]; then
+        warn="$warn
+  skills: $ddst is a real directory (stale copy; move aside, re-run ./install.sh)"
+      else
+        warn="$warn
+  skills: $ddst missing (run ./install.sh)"
+      fi
+    done
+  done
+  # AGENTS marked block: present and byte-equal to this repo's block
+  if [ ! -f "$OMP_AGENTS" ]; then
+    warn="$warn
+  $OMP_AGENTS missing (standing behavior not installed; run ./install.sh)"
+  else
+    tmp_dblock="$(mktemp)"
+    awk -v begin="$BEGIN_MARK" -v end="$END_MARK" '
+      $0 == begin { inb = 1 }
+      inb { print }
+      inb && $0 == end { inb = 0 }
+    ' "$OMP_AGENTS" > "$tmp_dblock"
+    if [ ! -s "$tmp_dblock" ]; then
+      warn="$warn
+  $OMP_AGENTS: no agent-runbook marked block (run ./install.sh)"
+    elif ! cmp -s "$tmp_dblock" "$tmp_block"; then
+      warn="$warn
+  $OMP_AGENTS: marked block drifted from this repo's AGENTS.md (re-run ./install.sh)"
+    fi
+    rm -f "$tmp_dblock"
+  fi
+  # scaffold + migrator installed-copy parity (PATH-gated installs)
+  case ":$PATH:" in
+    *":${HOME}/.local/bin:"*)
+      for dexec in migrate-user-comms.sh new-enclosing-folder.sh; do
+        ddst="${HOME}/.local/bin/$dexec"
+        dsrc="$HERE/$dexec"
+        [ "$dexec" = "new-enclosing-folder.sh" ] && dsrc="$HERE/scaffold/$dexec"
+        if [ ! -e "$ddst" ]; then
+          warn="$warn
+  $ddst: not installed (run ./install.sh)"
+        elif ! cmp -s "$ddst" "$dsrc"; then
+          warn="$warn
+  $ddst: drifted from this repo's copy (reconcile deliberately, re-check provenance, re-run install)"
+        fi
+      done
+      ;;
+  esac
+  rm -f "$tmp_block"
 fi
 
 # Doctor gate: after every check/parse, before any mutation. Report + exit 0.

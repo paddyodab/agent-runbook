@@ -18,12 +18,14 @@
 #
 # Usage: ./comms-lifecycle-test.sh <folder-with-comms-scaffold>
 #
-# SAFETY: the run NEVER touches the folder you name. It stages its own disposable
-# fixture under /tmp — a byte-for-byte copy of that folder's comms/ scaffold
-# (README, session scripts, templates) — and mutates only the fixture. This harness
-# drives the scripts THROUGH destructive lifecycle steps, so pointing it at a live
-# enclosing folder must be structurally safe: the fixture is what gets wiped, not
-# the operator's sessions.
+# SAFETY: the run NEVER touches the folder you name, and never leaves /tmp state
+# behind. It stages one disposable run root (a single mktemp -d holding the whole
+# comms/ protocol tree MINUS any session folders, plus its own ledger HOME) and
+# mutates only that. This harness drives the scripts THROUGH destructive lifecycle
+# steps, so pointing it at a live enclosing folder must be structurally safe: the
+# run root is what gets wiped, not the operator's sessions.
+# CONCURRENCY: one run root per invocation (mktemp is PID/instance-unique) and the
+# ledger HOME lives inside it, so concurrent gate runs cannot erase each other.
 set -u
 
 usage() {
@@ -42,7 +44,8 @@ usage() {
 
 TARGET="$(cd "$1" && pwd)"
 SCRIPTS="$TARGET/comms"        # the SOURCE scaffold (read-only from the harness's view)
-FIXTURE="/tmp/comms-lifecycle-fixture.$$"
+RUNROOT="$(mktemp -d /tmp/comms-lifecycle.XXXXXX)"
+FIXTURE="$RUNROOT/comms"       # backwards-compat alias in failure text
 PASS=0; FAIL=0
 declare -a RESULTS
 
@@ -52,38 +55,37 @@ fail() { FAIL=$((FAIL+1)); RESULTS+=("FAIL $1: $2"); echo "  FAIL: $1 — $2" >&
 # run <expected-rc> <user> <script> [args...] — captures out+err separately
 run() {
   local want_rc="$1" user="$2"; shift 2
-  OUT="$(USER="$user" HOME=/tmp/lifecycle-home bash "$SCRIPTS/$1" "${@:2}" 2>/tmp/lifecycle-home/.stderr)"
+  OUT="$(USER="$user" HOME="$LIFECYCLE_HOME" bash "$SCRIPTS/$1" "${@:2}" 2>"$LIFECYCLE_HOME/.stderr")"
   RC=$?
-  ERR="$(cat /tmp/lifecycle-home/.stderr)"
+  ERR="$(cat "$LIFECYCLE_HOME/.stderr")"
   [ "$RC" = "$want_rc" ]
 }
 
 sess_dir() { printf '%s/comms/%s' "$TARGET" "$1"; }
 
-# fixture staging: copy the named folder's comms/ protocol scaffold (README,
-# scripts, templates) into a disposable /tmp fixture; the run mutates ONLY the
-# fixture. Protocol files stay authoritative in the source folder; session
-# folders there (if any) are deliberately NOT copied — the fixture starts from
-# the bare template state the assertions expect.
-mkdir -p "$FIXTURE/comms/templates"
-cp "$SCRIPTS"/README.md "$SCRIPTS"/session-start.sh "$SCRIPTS"/session-end.sh "$FIXTURE/comms/"
-cp "$SCRIPTS"/templates/session-handoff.md "$SCRIPTS"/templates/conversation.md "$FIXTURE/comms/templates/"
-chmod +x "$FIXTURE"/comms/session-start.sh "$FIXTURE"/comms/session-end.sh
+# fixture staging: copy the named folder's comms/ protocol scaffold into a
+# disposable run root; the run mutates ONLY the run root. Copy is the whole
+# comms/ protocol tree minus session state (session dirs hold real operator
+# sessions on a live folder; the fixture must start from template state). Anything
+# a future scaffold stamps under comms/ rides along automatically — an explicit
+# file manifest would silently exclude it (laptop review, concern 5).
+mkdir -p "$RUNROOT"
+cp -R "$SCRIPTS/." "$RUNROOT/comms/"
+find "$RUNROOT/comms" -mindepth 2 -maxdepth 2 -type d -name '[0-9]*-*' -exec rm -rf {} + 2>/dev/null || true
+rm -rf "$RUNROOT/comms/templates/../.agent" 2>/dev/null
+chmod +x "$RUNROOT"/comms/session-start.sh "$RUNROOT"/comms/session-end.sh 2>/dev/null
 # the scripts resolve this-session paths relative to the fixture root; SCRIPTS
 # stays pinned to the fixture comms (the run executes the COPIED scripts — the
 # source folder's copies are never executed or mutated)
-SCRIPTS="$FIXTURE/comms"
-TARGET="$FIXTURE"
-trap 'rm -rf "$FIXTURE" /tmp/lifecycle-home' EXIT
-# the ledger HOME is harness-owned, but a root-run docker proof can leave it
-# root-owned behind; recreate cleanly each run (never inherit someone else's)
-if [ -e /tmp/lifecycle-home ]; then
-  rm -rf /tmp/lifecycle-home 2>/dev/null || {
-    echo "refused: /tmp/lifecycle-home exists and cannot be removed (owned by another user, likely a docker run); remove it as its owner, then re-run" >&2
-    exit 1
-  }
-fi
-mkdir -p /tmp/lifecycle-home
+SCRIPTS="$RUNROOT/comms"
+TARGET="$RUNROOT"
+trap 'rm -rf "$RUNROOT"' EXIT
+# the ledger HOME lives inside the run root (one mktemp owns everything; a
+# root-run docker proof can leave root-owned files behind — recreate cleanly
+# each run, and the refusal path names the hatch)
+if [ -e "$RUNROOT/home" ]; then rm -rf "$RUNROOT/home"; fi
+mkdir -p "$RUNROOT/home"
+LIFECYCLE_HOME="$RUNROOT/home"
 
 echo "== 1. u1 fresh start"
 run 0 u1 session-start.sh
@@ -141,7 +143,7 @@ fill_handoff "$(sess_dir u1/$(date +%Y%m%d)-01)/session-handoff.md" u1
 sed "s/{{DATE-SEQ}}/$(date +%Y%m%d)-01/g" "$SCRIPTS/templates/conversation.md" > "$(sess_dir u1/$(date +%Y%m%d)-01)/conversation.md"
 run 0 u1 session-end.sh
 grep -qF 'SEAL' "$(sess_dir u1/$(date +%Y%m%d)-01/session-handoff.md)" && fail "u1 seal" "SEAL marker still present" || ok "u1 sealed (marker gone)"
-grep -qF 'U1-TEST-FINDING' /tmp/lifecycle-home/.agent/learnings.md && ok "ledger digest appended" || fail "ledger" "finding not appended"
+grep -qF 'U1-TEST-FINDING' "$LIFECYCLE_HOME/.agent/learnings.md" && ok "ledger digest appended" || fail "ledger" "finding not appended"
 
 echo "== 7. u2 fresh start resumes from u1's sealed handoff"
 rm -rf "$(sess_dir u2)"
