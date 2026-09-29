@@ -73,70 +73,113 @@ fi
 # The scaffold's heredocs ARE the stamped copies (byte-verified against live at
 # build time), so an old folder gets the current scripts from the same source the
 # scaffold uses — no separate live copy to drift.
-SCAFFOLD="$HERE/scaffold/new-enclosing-folder.sh"
-[[ -f "$SCAFFOLD" ]] || die "scaffold not found next to this script (expected $SCAFFOLD)"
+# Resolution order: (a) repo-tree layout — scaffold/ next to this script; (b) the
+# comms tree's own tracked protocol files (the scaffold's initial commit carries
+# byte-identical copies — clone-time migration or installed copies WITHOUT a
+# scaffold next door fall here); (c) the tracked hooks/pre-push stays the hook
+# fallback in §3b. The laptop case (installed copy, no scaffold/ sibling) is (b).
+resolve_scaffold_source() {
+  if [[ -f "$HERE/scaffold/new-enclosing-folder.sh" ]]; then
+    SCAFFOLD="$HERE/scaffold/new-enclosing-folder.sh"
+    SCAFFOLD_MODE="scaffold"
+  elif [[ -f "$COMMS/session-start.sh" ]]; then
+    SCAFFOLD="$COMMS"
+    SCAFFOLD_MODE="comms-tree"
+  else
+    die "no scaffold source: neither $HERE/scaffold/ (repo layout) nor the comms tree itself ($COMMS) — cannot refresh scripts"
+  fi
+}
+SCAFFOLD=""
+SCAFFOLD_MODE=""
+resolve_scaffold_source
+
 TMPDIR_M="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR_M"' EXIT
-START_MARKER="$(awk '/cat > "\$TARGET\/comms\/session-start.sh"/ {print NR; exit}' "$SCAFFOLD")"
-END_MARKER="$(awk '/cat > "\$TARGET\/comms\/session-end.sh"/ {print NR; exit}' "$SCAFFOLD")"
-[[ -n "$START_MARKER" && -n "$END_MARKER" ]] || die "scaffold heredoc markers not found — scaffold format drift"
-# extraction: from marker line +1 to the FIRST lone SCRIPT_EOF line after it
-extract() { # <start-line>
-  awk -v n="$1" 'NR>n { print }' "$SCAFFOLD" \
-    | awk 'BEGIN{done=0} !done && /^SCRIPT_EOF$/ {done=1; exit} !done { print }'
-}
-extract "$START_MARKER" > "$TMPDIR_M/session-start.sh"
-extract "$END_MARKER" > "$TMPDIR_M/session-end.sh"
-for f in session-start.sh session-end.sh; do
-  [[ -s "$TMPDIR_M/$f" ]] || die "extracted $f is empty — scaffold format drift"
-done
-bash -n "$TMPDIR_M/session-start.sh" && bash -n "$TMPDIR_M/session-end.sh" \
-  || die "extracted scripts fail syntax check — scaffold drift; refusing to install"
+if [[ "$SCAFFOLD_MODE" == "scaffold" ]]; then
+  START_MARKER="$(awk '/cat > "\$TARGET\/comms\/session-start.sh"/ {print NR; exit}' "$SCAFFOLD")"
+  END_MARKER="$(awk '/cat > "\$TARGET\/comms\/session-end.sh"/ {print NR; exit}' "$SCAFFOLD")"
+  [[ -n "$START_MARKER" && -n "$END_MARKER" ]] || die "scaffold heredoc markers not found — scaffold format drift"
+  # extraction: from marker line +1 to the FIRST lone SCRIPT_EOF line after it
+  extract() { # <start-line>
+    awk -v n="$1" 'NR>n { print }' "$SCAFFOLD" \
+      | awk 'BEGIN{done=0} !done && /^SCRIPT_EOF$/ {done=1; exit} !done { print }'
+  }
+  extract "$START_MARKER" > "$TMPDIR_M/session-start.sh"
+  extract "$END_MARKER" > "$TMPDIR_M/session-end.sh"
+  for f in session-start.sh session-end.sh; do
+    [[ -s "$TMPDIR_M/$f" ]] || die "extracted $f is empty — scaffold format drift"
+  done
+  bash -n "$TMPDIR_M/session-start.sh" && bash -n "$TMPDIR_M/session-end.sh" \
+    || die "extracted scripts fail syntax check — scaffold drift; refusing to install"
+else
+  # comms-tree mode: the folder's OWN session scripts are the current-est source
+  # available (they were stamped by THIS unit's scaffold). Refresh = cmp-only (the
+  # migrator's job here is layout + hook, not script overwrite; there is nothing
+  # newer locally to install). AGENTS refresh uses the enclosing folder's own file.
+  for f in session-start.sh session-end.sh; do
+    [[ -f "$COMMS/$f" ]] || die "$COMMS/$f missing — comms tree incomplete; refusing"
+  done
+  cp "$COMMS/session-start.sh" "$COMMS/session-end.sh" "$TMPDIR_M/"
+  bash -n "$TMPDIR_M/session-start.sh" && bash -n "$TMPDIR_M/session-end.sh" \
+    || die "comms-tree scripts fail syntax check — refusing"
+fi
 # AGENTS.md refresh: the standing rules (incl. the two-workers/one-repo worktree rule)
 # live in the scaffold heredoc; an old folder's AGENTS.md drifts as the runbook evolves.
 # Refresh the body (everything after the slug heading), keeping the folder's own heading.
+# comms-tree mode: no scaffold → no newer AGENTS source locally; leave AGENTS.md alone
+# (the enclosing folder's own file is the source of truth on that node).
 AGENTS_F="$TARGET/AGENTS.md"
-AG_START="$(awk '/cat > "\$STAGE\/AGENTS.md"/ {print NR; exit}' "$SCAFFOLD")"
-[[ -n "$AG_START" ]] || die "scaffold AGENTS heredoc marker not found"
-awk -v n="$AG_START" 'NR>n { print }' "$SCAFFOLD" \
-  | awk 'BEGIN{done=0} !done && /^AGENTS_EOF$/ {done=1; exit} !done { print }' > "$TMPDIR_M/AGENTS.md"
-if [[ ! -s "$TMPDIR_M/AGENTS.md" ]]; then
-  die "extracted AGENTS.md is empty — scaffold drift"
+if [[ "$SCAFFOLD_MODE" == "scaffold" ]]; then
+  AG_START="$(awk '/cat > "\$STAGE\/AGENTS.md"/ {print NR; exit}' "$SCAFFOLD")"
+  [[ -n "$AG_START" ]] || die "scaffold AGENTS heredoc marker not found"
+  awk -v n="$AG_START" 'NR>n { print }' "$SCAFFOLD" \
+    | awk 'BEGIN{done=0} !done && /^AGENTS_EOF$/ {done=1; exit} !done { print }' > "$TMPDIR_M/AGENTS.md"
+  if [[ ! -s "$TMPDIR_M/AGENTS.md" ]]; then
+    die "extracted AGENTS.md is empty — scaffold drift"
+  fi
 fi
-if [[ ! -f "$AGENTS_F" ]]; then
-  cp "$TMPDIR_M/AGENTS.md" "$AGENTS_F"
-  echo "AGENTS.md stamped (was missing)"
-else
-  # compare bodies: line 1 is the slug heading (may legitimately differ)
-  if ! diff <(tail -n +2 "$AGENTS_F") <(tail -n +2 "$TMPDIR_M/AGENTS.md") >/dev/null; then
-    HEAD_LINE="$(head -1 "$AGENTS_F")"
-    { printf '%s\n' "$HEAD_LINE"; tail -n +2 "$TMPDIR_M/AGENTS.md"; } > "$AGENTS_F.new"
-    mv "$AGENTS_F.new" "$AGENTS_F"
-    echo "AGENTS.md body refreshed to current standing rules"
+if [[ "$SCAFFOLD_MODE" == "scaffold" ]]; then
+  if [[ ! -f "$AGENTS_F" ]]; then
+    cp "$TMPDIR_M/AGENTS.md" "$AGENTS_F"
+    echo "AGENTS.md stamped (was missing)"
   else
-    echo "AGENTS.md already current"
+    # compare bodies: line 1 is the slug heading (may legitimately differ)
+    if ! diff <(tail -n +2 "$AGENTS_F") <(tail -n +2 "$TMPDIR_M/AGENTS.md") >/dev/null; then
+      HEAD_LINE="$(head -1 "$AGENTS_F")"
+      { printf '%s\n' "$HEAD_LINE"; tail -n +2 "$TMPDIR_M/AGENTS.md"; } > "$AGENTS_F.new"
+      mv "$AGENTS_F.new" "$AGENTS_F"
+      echo "AGENTS.md body refreshed to current standing rules"
+    else
+      echo "AGENTS.md already current"
+    fi
   fi
 fi
 
 TEMPLATES_DIR="$COMMS/templates"
 if [[ ! -f "$TEMPLATES_DIR/session-handoff.md" ]]; then
-  extract_tpl() { # <marker-line-number> <out>
-    awk -v n="$1" 'NR>n { print }' "$SCAFFOLD" \
-      | awk 'BEGIN{done=0} !done && /^TEMPLATE_EOF$/ {done=1; exit} !done { print }'
-  }
-  T1="$(awk '/cat > "\$TARGET\/comms\/templates\/session-handoff.md"/ {print NR; exit}' "$SCAFFOLD")"
-  T2="$(awk '/cat > "\$TARGET\/comms\/templates\/conversation.md"/ {print NR; exit}' "$SCAFFOLD")"
-  mkdir -p "$TEMPLATES_DIR"
-  extract_tpl "$T1" > "$TEMPLATES_DIR/session-handoff.md"
-  extract_tpl "$T2" > "$TEMPLATES_DIR/conversation.md"
-  echo "templates/ missing — stamped fresh from scaffold"
+  if [[ "$SCAFFOLD_MODE" == "scaffold" ]]; then
+    extract_tpl() { # <marker-line-number> <out>
+      awk -v n="$1" 'NR>n { print }' "$SCAFFOLD" \
+        | awk 'BEGIN{done=0} !done && /^TEMPLATE_EOF$/ {done=1; exit} !done { print }'
+    }
+    T1="$(awk '/cat > "\$TARGET\/comms\/templates\/session-handoff.md"/ {print NR; exit}' "$SCAFFOLD")"
+    T2="$(awk '/cat > "\$TARGET\/comms\/templates\/conversation.md"/ {print NR; exit}' "$SCAFFOLD")"
+    mkdir -p "$TEMPLATES_DIR"
+    extract_tpl "$T1" > "$TEMPLATES_DIR/session-handoff.md"
+    extract_tpl "$T2" > "$TEMPLATES_DIR/conversation.md"
+    echo "templates/ missing — stamped fresh from scaffold"
+  else
+    die "$TEMPLATES_DIR missing and no scaffold source to stamp it from — clone a full comms (unit-1 scaffold commits templates/) or run from the repo tree"
+  fi
 fi
 for f in session-start.sh session-end.sh; do
   if cmp -s "$COMMS/$f" "$TMPDIR_M/$f"; then
     echo "comms/$f already current"
-  else
+  elif [[ "$SCAFFOLD_MODE" == "scaffold" ]]; then
     cp "$TMPDIR_M/$f" "$COMMS/$f.new" && chmod +x "$COMMS/$f.new" && mv "$COMMS/$f.new" "$COMMS/$f"
     echo "comms/$f replaced with current (user-keyed) version"
+  else
+    : # comms-tree mode: the tree's own copies ARE the source; nothing newer to install
   fi
 done
 
@@ -144,18 +187,24 @@ done
 # Idempotent: init only when .git is absent (a pre-fork folder has none); stamp
 # the hook whenever it is missing or stale (clones don't inherit hooks — the
 # same self-heal comms-sync export owns later; wired here for every node that
-# might push). The hook's source is the tracked copy at comms/hooks/pre-push,
-# extracted from the SAME scaffold heredoc this script already extracts the
-# session scripts from (one source, two consumers).
-HOOK_SRC_LINE="$(awk '/cat > "\$STAGE\/comms-hook-pre-push"/ {print NR; exit}' "$SCAFFOLD")"
-[[ -n "$HOOK_SRC_LINE" ]] || die "scaffold hook heredoc marker not found"
-extract_hook() {
-  awk -v n="$HOOK_SRC_LINE" 'NR>n { print }' "$SCAFFOLD" \
-    | awk 'BEGIN{done=0} !done && /^HOOK_EOF$/ {done=1; exit} !done { print }'
-}
-extract_hook > "$TMPDIR_M/pre-push"
-[[ -s "$TMPDIR_M/pre-push" ]] || die "extracted pre-push hook is empty — scaffold drift"
-bash -n "$TMPDIR_M/pre-push" || die "extracted hook fails syntax check — scaffold drift"
+# might push). Hook source resolution (one resolver): scaffold heredoc when in
+# repo-tree layout, else the comms tree's tracked copy at comms/hooks/pre-push.
+HOOK_ACTIVE_EXISTS=0
+if [[ "$SCAFFOLD_MODE" == "scaffold" ]]; then
+  HOOK_SRC_LINE="$(awk '/cat > "\$STAGE\/comms-hook-pre-push"/ {print NR; exit}' "$SCAFFOLD")"
+  [[ -n "$HOOK_SRC_LINE" ]] || die "scaffold hook heredoc marker not found"
+  extract_hook() {
+    awk -v n="$HOOK_SRC_LINE" 'NR>n { print }' "$SCAFFOLD" \
+      | awk 'BEGIN{done=0} !done && /^HOOK_EOF$/ {done=1; exit} !done { print }'
+  }
+  extract_hook > "$TMPDIR_M/pre-push"
+  [[ -s "$TMPDIR_M/pre-push" ]] || die "extracted pre-push hook is empty — scaffold drift"
+  bash -n "$TMPDIR_M/pre-push" || die "extracted hook fails syntax check — scaffold drift"
+else
+  [[ -f "$COMMS/hooks/pre-push" ]] || die "no scaffold source and no tracked $COMMS/hooks/pre-push — cannot stamp the hook"
+  cp "$COMMS/hooks/pre-push" "$TMPDIR_M/pre-push"
+  bash -n "$TMPDIR_M/pre-push" || die "tracked hook fails syntax check — refusing"
+fi
 if [[ ! -d "$COMMS/.git" ]]; then
   command -v git >/dev/null 2>&1 || die "git not found — comms/ must be a git repo for history transport; install git and re-run"
   mkdir -p "$COMMS/hooks"
