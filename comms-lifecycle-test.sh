@@ -16,11 +16,33 @@
 # Runs the scripts as-is; user identity comes from $COMMS_TEST_USER (the scripts read
 # USER). Each assertion is observable: exit code + filesystem effect + stdout/stderr.
 #
-# Usage: ./comms-lifecycle-test.sh <enclosing-folder-to-test-in>
+# Usage: ./comms-lifecycle-test.sh <folder-with-comms-scaffold>
+#
+# SAFETY: the run NEVER touches the folder you name. It stages its own disposable
+# fixture under /tmp — a byte-for-byte copy of that folder's comms/ scaffold
+# (README, session scripts, templates) — and mutates only the fixture. This harness
+# drives the scripts THROUGH destructive lifecycle steps, so pointing it at a live
+# enclosing folder must be structurally safe: the fixture is what gets wiped, not
+# the operator's sessions.
 set -u
 
+usage() {
+  echo "usage: $0 <folder-with-comms-scaffold>" >&2
+  echo "  <folder> must contain comms/ with README.md, session-start.sh," >&2
+  echo "  session-end.sh, templates/ — i.e. any enclosing folder (live ones" >&2
+  echo "  are safe: the run mutates only its own /tmp fixture, never <folder>)." >&2
+  exit 1
+}
+[ "${1:-}" ] || usage
+[ -d "$1/comms" ] || { echo "refused: no comms/ under $1 — not a comms scaffold" >&2; exit 1; }
+[ -x "$1/comms/session-start.sh" ] && [ -x "$1/comms/session-end.sh" ] || {
+  echo "refused: $1/comms lacks executable session-start.sh / session-end.sh" >&2
+  exit 1
+}
+
 TARGET="$(cd "$1" && pwd)"
-SCRIPTS="$TARGET/comms"
+SCRIPTS="$TARGET/comms"        # the SOURCE scaffold (read-only from the harness's view)
+FIXTURE="/tmp/comms-lifecycle-fixture.$$"
 PASS=0; FAIL=0
 declare -a RESULTS
 
@@ -30,19 +52,37 @@ fail() { FAIL=$((FAIL+1)); RESULTS+=("FAIL $1: $2"); echo "  FAIL: $1 — $2" >&
 # run <expected-rc> <user> <script> [args...] — captures out+err separately
 run() {
   local want_rc="$1" user="$2"; shift 2
-  OUT="$(USER="$user" HOME=/tmp/lifecycle-home bash "$SCRIPTS/$1" "${@:2}" 2>"$TARGET/.stderr")"
+  OUT="$(USER="$user" HOME=/tmp/lifecycle-home bash "$SCRIPTS/$1" "${@:2}" 2>/tmp/lifecycle-home/.stderr)"
   RC=$?
-  ERR="$(cat "$TARGET/.stderr")"
+  ERR="$(cat /tmp/lifecycle-home/.stderr)"
   [ "$RC" = "$want_rc" ]
 }
 
 sess_dir() { printf '%s/comms/%s' "$TARGET" "$1"; }
 
-# state isolation: the folder must hold ONLY comms/templates (the protocol files stay;
-# session folders + fake ledgers from a previous run are wiped).
-rm -rf "$TARGET/comms/u1" "$TARGET/comms/u2" "$TARGET/comms/templates/../.agent" 2>/dev/null
-find "$TARGET/comms" -maxdepth 2 -mindepth 1 -type d ! -name templates | xargs rm -rf 2>/dev/null
-rm -rf /tmp/lifecycle-home
+# fixture staging: copy the named folder's comms/ protocol scaffold (README,
+# scripts, templates) into a disposable /tmp fixture; the run mutates ONLY the
+# fixture. Protocol files stay authoritative in the source folder; session
+# folders there (if any) are deliberately NOT copied — the fixture starts from
+# the bare template state the assertions expect.
+mkdir -p "$FIXTURE/comms/templates"
+cp "$SCRIPTS"/README.md "$SCRIPTS"/session-start.sh "$SCRIPTS"/session-end.sh "$FIXTURE/comms/"
+cp "$SCRIPTS"/templates/session-handoff.md "$SCRIPTS"/templates/conversation.md "$FIXTURE/comms/templates/"
+chmod +x "$FIXTURE"/comms/session-start.sh "$FIXTURE"/comms/session-end.sh
+# the scripts resolve this-session paths relative to the fixture root; SCRIPTS
+# stays pinned to the fixture comms (the run executes the COPIED scripts — the
+# source folder's copies are never executed or mutated)
+SCRIPTS="$FIXTURE/comms"
+TARGET="$FIXTURE"
+trap 'rm -rf "$FIXTURE" /tmp/lifecycle-home' EXIT
+# the ledger HOME is harness-owned, but a root-run docker proof can leave it
+# root-owned behind; recreate cleanly each run (never inherit someone else's)
+if [ -e /tmp/lifecycle-home ]; then
+  rm -rf /tmp/lifecycle-home 2>/dev/null || {
+    echo "refused: /tmp/lifecycle-home exists and cannot be removed (owned by another user, likely a docker run); remove it as its owner, then re-run" >&2
+    exit 1
+  }
+fi
 mkdir -p /tmp/lifecycle-home
 
 echo "== 1. u1 fresh start"
@@ -132,7 +172,7 @@ echo "== 11. cross-user CHRONOLOGY: newest date-seq wins regardless of user name
 # The path-sort bug class: a LATE-alphabet user holding an OLD handoff vs an
 # EARLY-alphabet user holding a NEW one. Fixtures use real calendar offsets so the
 # test is date-independent:
-YESTERDAY="$(date -v -1d +%Y%m%d 2>/dev/null || date -d yesterday +%Y%m%d)"
+YESTERDAY="$(date -v -1d +%Y%m%d 2>/dev/null || date -u -d "@$(( $(date -u +%s) - 86400 ))" +%Y%m%d)"
 TODAY="$(date +%Y%m%d)"
 mkdir -p "$(sess_dir zz/$YESTERDAY-01)"
 fill_handoff "$(sess_dir zz/$YESTERDAY-01)/session-handoff.md" zz
@@ -157,7 +197,7 @@ echo "$OUT" | grep -Eq "Resuming from sealed handoff: comms/u[12]/$TODAY-01/sess
 # u2 has OWN today-sealed + zz has OLDER sealed; a THIRD user (mid-alphabet 'mw')
 # gets an intermediate date; fresh-start for a FOURTH user 'anew' must pick u2's
 # today (newest), regardless of zz sorting last.
-MW_YESTERDAY="$(date -v -2d +%Y%m%d 2>/dev/null || date -d '2 days ago' +%Y%m%d)"
+MW_YESTERDAY="$(date -v -2d +%Y%m%d 2>/dev/null || date -u -d "@$(( $(date -u +%s) - 172800 ))" +%Y%m%d)"
 mkdir -p "$(sess_dir mw/$MW_YESTERDAY-01)"
 fill_handoff "$(sess_dir mw/$MW_YESTERDAY-01)/session-handoff.md" mw
 run 0 u2 session-end.sh "mw/$MW_YESTERDAY-01" 2>/dev/null || true

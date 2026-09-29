@@ -40,8 +40,9 @@ kit/omp/          — Docker Sandboxes kit (kind: sandbox, schema v2): the sandb
                      domain mixins land under kit/mixins/<domain>/ when forged
 install.sh        — classic (this tree) and --machine (manifest-driven) modes,
                      plus --doctor (read-only what's-missing/drifted report)
-comms-lifecycle-test.sh — the comms gate: 18-assertion two-fake-user run against
-                     any enclosing folder (green on bash 5.3 and stock bash 3.2)
+comms-lifecycle-test.sh — the comms gate: 18-assertion two-fake-user run in a
+                     disposable /tmp fixture staged from the named folder's comms/
+                     scaffold (live enclosing folders are safe to point at)
 migrate-user-comms.sh — one-command migration of pre-multi-user enclosing folders
 SMOKE.md          — post-install checklist: prove the toolkit is live in a fresh session
 AGENTS.md         — the marked standing-behavior block install.sh appends to ~/.omp/agent/AGENTS.md
@@ -115,8 +116,9 @@ live in a fresh session. If all pass, the agent behaves; no prior context needed
 For the machine/fresh-box path, the equivalent is `./sandbox-test.sh` (docker) plus the
 machine checks in [machine.md](machine.md). Existing enclosing folders predating the
 multi-user layout migrate with `./migrate-user-comms.sh <folder>` (idempotent); the
-comms protocol's own gate is `./comms-lifecycle-test.sh <folder>` — 18 assertions,
-green on bash 5.3 and stock bash 3.2.
+comms protocol's own gate is `./comms-lifecycle-test.sh <folder>` — 18 assertions in
+a disposable /tmp fixture (green on bash 5.3 and stock bash 3.2); pointing it at a
+live enclosing folder is safe by construction, it never mutates what you name.
 
 ## Shared-context box (multi-user)
 
@@ -124,8 +126,9 @@ For one box shared by several users over SSH/herdr (AWS or any Linux server): th
 protocol is **user-keyed** — `comms/<user>/<YYYYMMDD>-<NN>/` — with a cross-user
 canonical state (newest sealed handoff anywhere wins). Deployment runbook: the
 "Shared-context box" section of [machine.md](machine.md). Protocol proofs:
-`./comms-lifecycle-test.sh <enclosing-folder>` (two fake users, 18 assertions; green on
-bash 5.3 and stock bash 3.2), evidence in `.evidence/shared-comms-01/`.
+`./comms-lifecycle-test.sh <enclosing-folder>` (two fake users, 18 assertions, run
+in a disposable /tmp fixture — the named folder is only read; green on bash 5.3 and
+stock bash 3.2), evidence in `.evidence/shared-comms-01/`.
 
 ## Conventions
 
