@@ -29,8 +29,9 @@ Write a note when the full reasoning would be a wall in chat: source analysis, o
 deliberation, long evidence, design rationale.
 
 - **Where:** if this session runs inside a comms-protocol enclosing folder, notes go in
-  `comms/<current-session>/mind/`; otherwise `.mind/` in the repo root (add `.mind/` to
-  `.gitignore`). Prefer the comms location when both somehow apply.
+  the current session's `comms/<user>/<YYYYMMDD>-<NN>/mind/` (multi-user layout); if
+  no session folder exists, `.mind/` in the repo root (add `.mind/` to `.gitignore`).
+  Prefer the comms location when both somehow apply.
 - **Name:** `NNN-slug.md`, one topic per note, numbered in the order you thought them
   (continue the existing sequence).
 - **Cite in chat** as `m:NNN` — compact, keeps the dense line short.

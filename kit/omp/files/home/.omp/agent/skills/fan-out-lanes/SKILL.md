@@ -7,7 +7,7 @@ description: 'Herdr coordinator for 1:N after a sealed intent and verify-<app> e
 
 Foreman loop for eng-playbooks **1:N**. You are the coordinator in the operator's
 herdr session. Coder agents work in lane panes/worktrees. They never write
-`comms/<session>/` — that channel is operator ↔ foreman only.
+`comms/<user>/<YYYYMMDD>-<NN>/` — that channel is operator ↔ foreman only.
 
 ## Preconditions (hard refuse)
 

@@ -20,9 +20,9 @@ action confirmations, safety flags, real ambiguity (one short question beats gue
 **Mind notes (the depth channel).** When a reply would be a wall — analysis, options,
 evidence, source digests — write `mind/NNN-slug.md` instead: one topic per note,
 numbered in the order you thought them, next to the conversation if a comms session
-folder exists (`comms/<session>/mind/`), else `.mind/` in the repo (gitignore it).
-Notes are the raw feed, not the record: durable conclusions get promoted into the
-session's artifacts/handoff.
+folder exists (`comms/<user>/<YYYYMMDD>-<NN>/mind/`), else `.mind/` in the repo
+(gitignore it). Notes are the raw feed, not the record: durable conclusions get
+promoted into the session's artifacts/handoff.
 
 **Eng playbooks (how engineering work runs).** Load the `eng-playbooks` skill before
 any engineering work (its triggers are any of: new app, existing repo, refactor, or
@@ -50,8 +50,9 @@ written before the code they prove.
 lanes, or run 1:N after a sealed intent and `verify-<app>` exist, load
 `fan-out-lanes`: canary → worktrees/panes → `herdr agent wait` → gate re-proof →
 one consolidated verdict. Workers write lane-local `HANDOFF.md` + `.evidence/`;
-they never write `comms/<session>/`. Refuse fan-out if intent is unsealed or
-verify is missing — that is not an invitation to ride-along-code the unit.
+they never write `comms/<user>/<YYYYMMDD>-<NN>/` (operator ↔ foreman only).
+Refuse fan-out if intent is unsealed or verify is missing — that is not an
+invitation to ride-along-code the unit.
 
 **Work copies (the "work" folder).** Prior-art clones are read-only reference; when a
 ticket needs changes to a studied repo, clone it to a sibling `work/` folder at the
