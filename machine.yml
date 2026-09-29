@@ -7,10 +7,10 @@
 machine:
   name: personal-desktop            # edit per machine (personal-desktop, work-laptop, vps-01, ...)
   omp:
-    version: "18.2.0"               # `omp --version` must match (warning only, never auto-upgrade)
+    version: "18.4.3"               # `omp --version` must match (warning only, never auto-upgrade)
     install_hint: |
       Install options, pick one:
-        mise:    mise use -g github:can1357/oh-my-pi@18.2.0
+        mise:    mise use -g github:can1357/oh-my-pi@18.4.3
         bun:     bun install -g @oh-my-pi/pi-coding-agent@17.4.2   # bun ships older pin; prefer mise
       omp's own installer: see https://github.com/can1357/oh-my-pi
   runtime_deps:                     # needed by the extras, not by omp itself

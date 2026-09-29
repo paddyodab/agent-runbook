@@ -15,13 +15,13 @@
 #   - glow (herdr mind-pane rendering, optional dep in machine.yml)
 #
 # Build:
-#   docker build --build-arg OMP_VERSION=18.2.0 -t paddyodab/sbx-omp:18.2.0 --push template/
+#   docker build --build-arg OMP_VERSION=18.4.3 -t paddyodab/sbx-omp:18.4.3 --push template/
 #
 # Kit contract: kit/omp/spec.yaml points sandbox.image at this template.
 
 FROM docker/sandbox-templates:shell-docker
 
-ARG OMP_VERSION=18.2.0
+ARG OMP_VERSION=18.4.3
 ENV OMP_VERSION=${OMP_VERSION}
 
 # System-level packages as root.

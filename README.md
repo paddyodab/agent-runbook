@@ -40,8 +40,15 @@ kit/omp/          — Docker Sandboxes kit (kind: sandbox, schema v2): the sandb
                      domain mixins land under kit/mixins/<domain>/ when forged
 install.sh        — classic (this tree) and --machine (manifest-driven) modes,
                      plus --doctor (read-only what's-missing/drifted report)
+comms-lifecycle-test.sh — the comms gate: 18-assertion two-fake-user run against
+                     any enclosing folder (green on bash 5.3 and stock bash 3.2)
+migrate-user-comms.sh — one-command migration of pre-multi-user enclosing folders
+SMOKE.md          — post-install checklist: prove the toolkit is live in a fresh session
+AGENTS.md         — the marked standing-behavior block install.sh appends to ~/.omp/agent/AGENTS.md
+intent-shared-comms.md — the multi-user comms unit's contract (sealed intent)
 sandbox-test.sh   — the proof: docker container + fresh HOME + machine install + pinned omp
 sbx-test.sh       — the same proof in a real Docker Sandbox microVM (sbx create shell)
+.evidence/        — numbered JSON artifacts + PROOF.md per proven unit
 ```
 
 - **Bro-mode** — the agent's standing register: answer first, lists ≤5, no preamble or
@@ -52,6 +59,10 @@ sbx-test.sh       — the same proof in a real Docker Sandbox microVM (sbx creat
  then opens git worktrees + herdr panes, waits with `herdr agent wait`, re-proves via
  the gate, and returns one verdict. Lane workers leave `HANDOFF.md` + `.evidence/`;
  sealed `comms/` stays operator ↔ foreman only.
+
+Note on mind-note locations: inside an enclosing folder they land in the CURRENT
+session folder, `comms/<user>/<YYYYMMDD>-<NN>/mind/` (the multi-user layout);
+without a session folder, `.mind/` in the repo (gitignore it).
 
 - **Eng playbooks** — classify how work walks in the door, then follow one named procedure:
   new-codebase (Mode A: artifacts before code), existing-codebase (Mode B: recover the
@@ -102,7 +113,10 @@ install; adapter clones live under `~/.omp/adapters/`).
 After install, run the [SMOKE.md](SMOKE.md) checklist — checks that prove the toolkit is
 live in a fresh session. If all pass, the agent behaves; no prior context needed.
 For the machine/fresh-box path, the equivalent is `./sandbox-test.sh` (docker) plus the
-machine checks in [machine.md](machine.md).
+machine checks in [machine.md](machine.md). Existing enclosing folders predating the
+multi-user layout migrate with `./migrate-user-comms.sh <folder>` (idempotent); the
+comms protocol's own gate is `./comms-lifecycle-test.sh <folder>` — 18 assertions,
+green on bash 5.3 and stock bash 3.2.
 
 ## Shared-context box (multi-user)
 
@@ -112,8 +126,6 @@ canonical state (newest sealed handoff anywhere wins). Deployment runbook: the
 "Shared-context box" section of [machine.md](machine.md). Protocol proofs:
 `./comms-lifecycle-test.sh <enclosing-folder>` (two fake users, 18 assertions; green on
 bash 5.3 and stock bash 3.2), evidence in `.evidence/shared-comms-01/`.
-Existing folders migrate with `./migrate-user-comms.sh <enclosing-folder>` (idempotent:
-moves flat sessions to `comms/<user>/`, refreshes scripts+templates from the scaffold).
 
 ## Conventions
 

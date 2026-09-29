@@ -13,7 +13,7 @@ licenses:
 
 args:
   omp_version:
-    default: "18.2.0"
+    default: "18.4.3"
     description: omp version pin (mirrors machine.yml machine.omp.version)
     pattern: '^[0-9]+\.[0-9]+\.[0-9]+$'
   adapter:
@@ -22,7 +22,7 @@ args:
     enum: [none, gh-issues, shortcut]
 
 sandbox:
-  image: paddyodab/sbx-omp:18.2.0
+  image: paddyodab/sbx-omp:18.4.3
   entrypoint: [omp]
   command:
     interactive: []

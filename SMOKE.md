@@ -8,7 +8,7 @@ Machine-mode checks (6–10) apply when the box was set up with `install.sh --ma
 | --- | --- | --- |
 | 1 | **Skills discovered.** Ask the agent: "which skills do you have that mention bro-mode or eng-playbooks?" | bro-mode, eng-playbooks, and fan-out-lanes named; descriptions match this repo. |
 | 2 | **Chat register holds.** Watch any substantive reply. | Answer first, no preamble/recap/closer, lists ≤5, one next action when open. |
-| 3 | **Mind channel works.** Ask something that needs depth (e.g. "compare two approaches for X"). | Depth lands in a mind note (`comms/<session>/mind/` or `.mind/`), chat cites it `m:NNN`, chat stays short. |
+| 3 | **Mind channel works.** Ask something that needs depth (e.g. "compare two approaches for X"). | Depth lands in a mind note (the current session's `mind/` folder when an enclosing folder exists, else `.mind/`), chat cites it `m:NNN`, chat stays short. |
 | 4 | **Drill-in works (herdr only).** Say "mind" while inside herdr. | A pane opens with the note rendered (glow); "unmind" closes it. Without herdr: the path is given in chat instead. |
 | 5 | **Door classification works.** Say: "I've got a bug report for my running app" — then "I want to start a new CLI tool." | First answer follows bugfix (reproduce-first); second follows new-codebase (intent-first, hand-do unit, forge verify-<app>). Escalations named, not improvised. |
 | 5b | **Fan-out canary (herdr).** With herdr up, ask: "run a fan-out canary only — no real unit." | A short pane runs, wait completes, skill refuses real lanes without sealed intent + verify-<app>. `HANDOFF.template.md` is cited. Without herdr: skill names degraded mode. |

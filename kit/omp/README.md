@@ -29,9 +29,9 @@ done
 sbx kit validate ./kit/omp
 sbx kit inspect ./kit/omp
 # local template (no registry needed):
-docker build --build-arg OMP_VERSION=18.2.0 -t paddyodab/sbx-omp:18.2.0 template/
-docker image save paddyodab/sbx-omp:18.2.0 -o /tmp/sbx-omp.tar
-sbx template load /tmp/sbx-omp-18.2.0.tar
+docker build --build-arg OMP_VERSION=18.4.3 -t paddyodab/sbx-omp:18.4.3 template/
+docker image save paddyodab/sbx-omp:18.4.3 -o /tmp/sbx-omp-18.4.3.tar
+sbx template load /tmp/sbx-omp-18.4.3.tar
 # create + inspect:
 sbx create ./kit/omp --name smoke ~/sandbox-agents/smoke .
 sbx exec smoke -- bash -lc 'omp --version; ls ~/.omp/agent/skills/'
