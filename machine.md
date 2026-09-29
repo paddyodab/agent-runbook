@@ -179,13 +179,14 @@ survives two real users.
 3. **Enclosing folder**: create via the scaffold ON THE BOX (install.sh puts
    `new-enclosing-folder.sh` on PATH), or rsync an existing folder up. The scaffold
    init's `comms/` as a git repo automatically — for cross-node transport, wire the
-   remote deliberately after creation:
+   remote deliberately after creation (naming: `<slug>-comms`, private GitHub):
    ```bash
-   git -C /srv/<slug>/comms remote add origin <private-github-url>
+   comms-sync remote git@github.com:<you>/<slug>-comms.git /srv/<slug>/comms
    ```
    Every node that pushes needs the credential pre-push hook — clones do NOT inherit
-   hooks; `./migrate-user-comms.sh <folder>` re-stamps it (idempotent), and the gate's
-   comms-as-git section refuses a fixture whose hook is missing.
+   hooks; `comms-sync import|export` self-heals (same stamp logic as
+   `migrate-user-comms.sh`), and the gate's comms-as-git section refuses a fixture
+   whose hook is missing.
 
    **gh on the box** (the EC2 Ubuntu image is bare; `machine.yml`'s runtime_deps are for
    the sandbox image, not this box): install gh in the pre-req sequence —
@@ -303,17 +304,18 @@ fresh start → intro names `comms/<user>/<today>-01`; the OTHER user can still
 fresh-start while yours is open; bare seal with no session of your own refuses naming
 the prefixed salvage command.
 
-Acceptance on the host: `./comms-lifecycle-test.sh /srv/<slug>` — 18 assertions in a
+Acceptance on the host: `./comms-lifecycle-test.sh /srv/<slug>` — 28 assertions in a
 disposable /tmp fixture staged from the folder's comms/ scaffold (the run never
 mutates the named folder — live ones are safe to point at), incl. the cross-user
 CHRONOLOGY scenario: a late-alphabet user's older handoff must lose to an
 early-alphabet user's newer one — the path-sort regression the pre-AWS probe
-caught. If seeding from an existing folder instead of fresh scaffolding, run
+caught — and the comms-as-git tier (valid repo + credential hook fires). If
+seeding from an existing folder instead of fresh scaffolding, run
 `./migrate-user-comms.sh /srv/<slug>` first.
 
 Protocol proofs: `./comms-lifecycle-test.sh <enclosing-folder>` (two fake users,
-18 assertions, disposable /tmp fixture; green on bash 5.3 host and stock bash 3.2
-in docker), evidence in `.evidence/shared-comms-01/`.
+28 assertions, disposable /tmp fixture; green on bash 5.3 host and stock bash 3.2
+in docker), evidence in `.evidence/shared-comms-01/` and `.evidence/comms-git-0N/`.
 
 Not covered here (deliberate): **S3 as the live filesystem** — the comms protocol is
 POSIX (find/grep/mv/awk, setgid, chmod, OS-user attribution) and an object store has

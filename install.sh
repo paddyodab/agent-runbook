@@ -224,6 +224,31 @@ if [ "$DOCTOR" != "1" ] && [ -x "$MIGRATE_SRC" ] && [ -d "${HOME}/.local/bin" ];
   esac
 fi
 
+# 3b. comms-sync (copy, exec bit — same PATH gate + refuse-fence as scaffold/migrator)
+SYNCSRC="$HERE/comms-sync"
+SYNCDST="${HOME}/.local/bin/comms-sync"
+if [ "$DOCTOR" != "1" ] && [ -x "$SYNCSRC" ] && [ -d "${HOME}/.local/bin" ]; then
+  case ":$PATH:" in
+    *":${HOME}/.local/bin:"*)
+      if [ -L "$SYNCDST" ]; then
+        rm "$SYNCDST"
+      elif [ -e "$SYNCDST" ]; then
+        if ! cmp -s "$SYNCDST" "$SYNCSRC"; then
+          echo "REFUSED: $SYNCDST exists and differs from this repo's copy." >&2
+          echo "  Reconcile, then re-run. Refusing to overwrite." >&2
+          exit 1
+        fi
+      fi
+      tmp_sync="$(mktemp)"
+      cat "$SYNCSRC" > "$tmp_sync"
+      chmod 755 "$tmp_sync"
+      mv "$tmp_sync" "$SYNCDST"
+      installed="$installed
+  $SYNCDST (comms-sync installed)"
+      ;;
+  esac
+fi
+
 if [ "$DOCTOR" != "1" ] && [ -x "$SCAFFOLD_SRC" ] && [ -d "${HOME}/.local/bin" ]; then
   case ":$PATH:" in
     *":${HOME}/.local/bin:"*)
@@ -379,7 +404,7 @@ if [ "$DOCTOR" = "1" ]; then
   # scaffold + migrator installed-copy parity (PATH-gated installs)
   case ":$PATH:" in
     *":${HOME}/.local/bin:"*)
-      for dexec in migrate-user-comms.sh new-enclosing-folder.sh; do
+      for dexec in comms-sync migrate-user-comms.sh new-enclosing-folder.sh; do
         ddst="${HOME}/.local/bin/$dexec"
         dsrc="$HERE/$dexec"
         [ "$dexec" = "new-enclosing-folder.sh" ] && dsrc="$HERE/scaffold/$dexec"
@@ -416,6 +441,6 @@ WARNINGS:
 $warn
 }
 Uninstall: remove the marked block from $OMP_AGENTS, the skill symlinks under
-$OMP_SKILLS and $AGENTS_SKILLS, $SCAFFOLD_DST if it was installed,
+$OMP_SKILLS and $AGENTS_SKILLS, $SCAFFOLD_DST, $SYNCDST, $MIGRATE_DST if installed,
 and any adapter clone under ~/.omp/adapters/.
 EOF

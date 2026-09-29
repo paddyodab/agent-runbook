@@ -54,8 +54,12 @@ migrate-user-comms.sh — one-command migration of pre-multi-user enclosing fold
 SMOKE.md          — post-install checklist: prove the toolkit is live in a fresh session
 AGENTS.md         — the marked standing-behavior block install.sh appends to ~/.omp/agent/AGENTS.md
 intent-shared-comms.md — the multi-user comms unit's contract (sealed intent);
-                     unit comms-git-01's contract lives at
-                     `.evidence/comms-git-01/INTENT.md`
+                     units comms-git-01/02's contracts live at
+                     `.evidence/comms-git-0N/INTENT.md`
+comms-sync         — the comms-as-git plumbing: import (pull --ff-only + hook
+                     self-heal; divergence → named rename recipe), export
+                     (self-heal → commit-if-needed → push --atomic), remote
+                     <url>, status; intentional firing only (unit comms-git-02)
 sandbox-test.sh   — the proof: docker container + fresh HOME + machine install + pinned omp
 sbx-test.sh       — the same proof in a real Docker Sandbox microVM (sbx create shell)
 .evidence/        — numbered JSON artifacts + PROOF.md per proven unit
@@ -145,13 +149,17 @@ stock bash 3.2), evidence in `.evidence/shared-comms-01/`.
 ## Comms-as-git (transport tier)
 
 `comms/` is a small git repo from the day the scaffold creates it. History moves
-between nodes ONLY deliberately (session boundaries or grab-and-go): today that is
-plain `git -C comms pull --ff-only` / `commit` + `push`; unit 2 (`comms-sync`) wraps
-exactly that plumbing. The **credential pre-push hook** ships stamped on every
+between nodes ONLY deliberately (session boundaries or grab-and-go):
+`comms-sync import | export | remote <url> | status` wraps exactly that plumbing
+(import = `pull --ff-only` + hook self-heal + optional `--resume`; export =
+self-heal → commit-if-needed → `push --atomic`; raw git works too). The
+**credential pre-push hook** ships stamped on every
 scaffold and is re-stamped by the migrator — a push whose added lines carry
 credential-shaped material is refused with file+line; the escape is
 `git push --no-verify`, deliberately. Evidence: `.evidence/comms-git-01/`
-(INTENT.md = the unit contract).
+(hook + repo-at-scaffold) and `.evidence/comms-git-02/` (comms-sync;
+INTENT.md in each = the unit contract). Remote naming: one GitHub repo per
+enclosing folder's comms/, `<slug>-comms`, private (owner decision, 2026-09-29).
 
 ## Conventions
 

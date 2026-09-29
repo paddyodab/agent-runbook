@@ -1,0 +1,13 @@
+{
+  "unit": "comms-git-02",
+  "artifact": "02-divergence",
+  "flow": {
+    "same_date_seq_both_nodes": "B pushed pdb/20260929-01; A edited the same path + committed locally",
+    "import_refuses": "exit 1 printing the 4-step rename recipe verbatim",
+    "recipe_executed_by_hand": "mv→reset --hard origin→pull --ff-only→mv back with .node-a suffix→commit→push",
+    "convergence": "both nodes at bb488d0; node-A edit preserved as pdb/20260929-01.node-a; B's copy intact",
+    "refusal_never_executes": true,
+    "raw_output": "diverge.out"
+  },
+  "note": "recipe v2: initial 3-step recipe left the local divergent commit stranded (push still failing); corrected to mv→reset --hard→pull→suffixed mv — validated end-to-end"
+}

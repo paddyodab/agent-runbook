@@ -1,0 +1,18 @@
+hint: Diverging branches can't be fast-forwarded, you need to either:
+hint:
+hint: 	git merge --no-ff
+hint:
+hint: or:
+hint:
+hint: 	git rebase
+hint:
+hint: Disable this message with "git config set advice.diverging false"
+fatal: Not possible to fast-forward, aborting.
+comms-sync: import diverged: BOTH nodes advanced against origin (the one real semantic conflict).
+  Recipe (execute by hand, deliberately):
+    1) mv /tmp/cgt2/evfix/comms/<user>/<date>-NN /tmp/collide
+    2) git -C /tmp/cgt2/evfix/comms pull --ff-only
+    3) mv /tmp/collide /tmp/cgt2/evfix/comms/<user>/<date>-NN.<this-node>
+  The suffixed copy stays on disk as a distinct foreign session (session scripts
+  read it but sequence discovery excludes non-standard suffixes) — reconcile the
+  CONTENT in the next session's handoff, then commit.

@@ -1,0 +1,15 @@
+== remote wiring + reachable-verify
+origin -> /tmp/n2rem (verify tracking after first push: git -C /tmp/n2f/n2/comms push -u origin master)
+REMOTE_OK
+== clone (hook NOT inherited) + import self-heal
+hook_absent_as_expected
+B32_HEALED
+PARITY_B32
+== export → import convergence
+EXPORTED
+imported: a7a69a6 session data: comms-sync export 2026-09-29
+CONVERGED_a7a69a671b39d9763675d32752045fc478e25817
+== leak refused via export (post-heal guard)
+leak_export_rc=1 (want 1)
+a7a69a6
+remote-tip-does-not-contain-leak (compare to a7a69a671b39d9763675d32752045fc478e25817)

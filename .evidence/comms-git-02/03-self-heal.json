@@ -1,0 +1,11 @@
+{
+  "unit": "comms-git-02",
+  "artifact": "03-self-heal",
+  "flow": {
+    "clone_without_hook": "git clone → .git/hooks/pre-push absent (proven: clones don't inherit)",
+    "import_self_heal": "comms-sync import stamps hook + tracked copy, cmp-parity",
+    "export_self_heal": "hook deleted → export re-stamps BEFORE pushing, commits tracked copy if stale",
+    "post_heal_guard": "leaky commit via healed node → export refused (exit 1), remote tip unchanged",
+    "bash32": "same flow in container: B32_HEALED + PARITY_B32 + leak refused, raw in unit2-bash32.txt"
+  }
+}

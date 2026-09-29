@@ -1,0 +1,189 @@
+#!/usr/bin/env bash
+# comms-sync — the comms-as-git transport plumbing, one command per session boundary.
+#
+#   comms-sync import [<comms-path>]     pull --ff-only (+ hook self-heal); refuses on
+#                                        divergence naming the rename recipe
+#   comms-sync export [<comms-path>]     hook self-heal, then commit-if-needed +
+#                                        push --atomic (the pre-push hook runs here)
+#   comms-sync remote <url> [<comms-path>]  wire the remote (refuses an existing
+#                                        different URL; verifies reachability first)
+#   comms-sync status [<comms-path>]     branch / ahead-behind / dirty / hook parity
+#
+# Intentional firing only (session boundaries or grab-and-go) — never cron/daemon.
+# Refuses to guess: every refusal names its own hatch. The one semantic conflict —
+# two nodes independently creating the same <user>/<date-seq> — refuses with the
+# rename recipe; the operator executes it (comms merges are semantic, not mechanical).
+#
+# Portable: stock bash 3.2 — no mapfile, `|| true` on find pipelines, no `;&`.
+# Usage: comms-sync <command> [args]
+set -u
+
+die() { echo "comms-sync: $*" >&2; exit 1; }
+
+usage() {
+  sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//;s/^#//'
+  exit 1
+}
+
+CMD="${1:-}"
+[ -n "$CMD" ] || usage
+shift
+
+# --- resolve the comms path (arg > ./comms > cwd if it IS comms) -----------------
+resolve_comms() {
+  if [ -n "$1" ]; then COMMS_PATH="$1"; else
+    if [ -d "comms/.git" ] || [ -d "comms" ]; then COMMS_PATH="comms";
+    elif [ -f "session-start.sh" ] && [ -d ".git" ] || [ -d ".git" ]; then COMMS_PATH="."
+    else COMMS_PATH="comms"; fi
+  fi
+  COMMS_PATH="$(cd "$COMMS_PATH" 2>/dev/null && pwd)" || die "no comms repo at '$1'"
+  [ -d "$COMMS_PATH/.git" ] || die "$COMMS_PATH is not a git repo — run migrate-user-comms.sh <folder> first (init + hook stamp)"
+}
+
+# --- hook self-heal (SAME semantics as migrate §3b; one resolver) ----------------
+# Hook source precedence: the scaffold heredoc next to this script (if scaffold is
+# bundled with it — repo/installed-tree layout), else the comms tree's TRACKED copy
+# at comms/hooks/pre-push (what the scaffold's initial commit carries).
+selfheal_hook() {
+  c="$1"
+  HOOK_ACTIVE="$c/.git/hooks/pre-push"
+  TRACKED="$c/hooks/pre-push"
+  HERE="$(cd "$(dirname "$0")" && pwd)"
+  SCAFFOLD="$HERE/scaffold/new-enclosing-folder.sh"
+  SRC=""
+  if [ -f "$SCAFFOLD" ]; then
+    HOOK_LINE="$(awk '/cat > "\$STAGE\/comms-hook-pre-push"/ {print NR; exit}' "$SCAFFOLD")"
+    if [ -n "$HOOK_LINE" ]; then
+      awk -v n="$HOOK_LINE" 'NR>n { print }' "$SCAFFOLD" \
+        | awk 'BEGIN{d=0} !d && /^HOOK_EOF$/ {d=1; exit} !d { print }' > "$TMPSYNC/hook-from-scaffold"
+      if [ -s "$TMPSYNC/hook-from-scaffold" ] && bash -n "$TMPSYNC/hook-from-scaffold" 2>/dev/null; then
+        SRC="$TMPSYNC/hook-from-scaffold"
+      fi
+    fi
+  fi
+  [ -n "$SRC" ] || SRC="$TRACKED"
+  [ -n "$SRC" ] || { echo "warning: no hook source (scaffold absent, $TRACKED missing) — hook NOT re-stamped; pushes there are UNGUARDED" >&2; return 0; }
+  if [ ! -x "$HOOK_ACTIVE" ] || ! cmp -s "$HOOK_ACTIVE" "$SRC"; then
+    mkdir -p "$c/.git/hooks"
+    cp "$SRC" "$HOOK_ACTIVE" && chmod +x "$HOOK_ACTIVE"
+    echo "credential pre-push hook stamped (was missing or stale)"
+    [ -f "$TRACKED" ] || { mkdir -p "$c/hooks"; cp "$SRC" "$TRACKED"; chmod +x "$TRACKED"; }
+    if [ "$CMD" = "export" ]; then
+      git -C "$c" add hooks/pre-push .gitignore 2>/dev/null || true
+      if ! git -C "$c" diff --cached --quiet 2>/dev/null; then
+        git -C "$c" -c user.name="${USER:-$(id -un)}" -c user.email="${USER:-$(id -un)}@$(hostname 2>/dev/null || echo local)" commit -qm "re-stamp credential pre-push hook (comms-sync self-heal)"
+        echo "committed the re-stamped hook (tracked copy was missing/stale)"
+      fi
+    fi
+  fi
+}
+
+# --- require a remote -------------------------------------------------------------
+require_remote() {
+  c="$1"
+  URL="$(git -C "$c" remote get-url origin 2>/dev/null)" || true
+  [ -n "${URL:-}" ] || die "no 'origin' remote on $c — wire it deliberately first: comms-sync remote <url> $c"
+}
+
+TMPSYNC="$(mktemp -d)"
+trap 'rm -rf "$TMPSYNC"' EXIT
+
+case "$CMD" in
+  import)
+    resolve_comms "${1:-}"
+    require_remote "$COMMS_PATH"
+    selfheal_hook "$COMMS_PATH"
+    if ! git -C "$COMMS_PATH" pull --ff-only 2>"$TMPSYNC/pull.err"; then
+      cat "$TMPSYNC/pull.err" >&2
+      if grep -q "Not possible to fast-forward" "$TMPSYNC/pull.err"; then
+        die "import diverged: BOTH nodes advanced against origin (the one real semantic conflict).
+  Recipe (execute by hand, deliberately):
+    1) mv $COMMS_PATH/<user>/<date>-NN /tmp/collide       # keep the workspace copy
+    2) git -C $COMMS_PATH reset --hard origin/master      # drop the local commit
+                                                          # (its content just moved to /tmp/collide)
+    3) git -C $COMMS_PATH pull --ff-only
+    4) mv /tmp/collide $COMMS_PATH/<user>/<date>-NN.<this-node>
+  Commit the suffixed copy when reconciled (its name suffix keeps it a distinct
+  foreign session: sequence discovery excludes non-standard suffixes). The refusal
+  never executes these — comms merges are semantic; a human reconciles."
+      fi
+      die "pull failed — see the git error above"
+    fi
+    echo "imported: $(git -C "$COMMS_PATH" log --oneline -1 | head -1)"
+    # --resume may appear before or after the path argument
+    RESUME=0
+    for a in "$@"; do [ "$a" = "--resume" ] && RESUME=1; done
+    if [ "$RESUME" = 1 ]; then
+      # session-start.sh computes its enclosing root as comms/..; the resume pairing
+      # therefore requires the enclosing layout (comms/ inside its folder — a
+      # standalone clone is a transport artifact: move it into the enclosing folder
+      # first, templates live comms-adjacent by convention).
+      if [ -f "$COMMS_PATH/../README.md" ] || [ -f "$COMMS_PATH/../AGENTS.md" ]; then
+        ( cd "$COMMS_PATH" && ./session-start.sh --resume )
+      else
+        die "--resume needs the enclosing layout (comms/ inside its folder — move this clone there, e.g. <folder>/comms); import itself is done."
+      fi
+    fi
+    ;;
+
+  export)
+    resolve_comms "${1:-}"
+    require_remote "$COMMS_PATH"
+    selfheal_hook "$COMMS_PATH"
+    BRANCH="$(git -C "$COMMS_PATH" branch --show-current)"
+    [ -n "$BRANCH" ] || BRANCH=master
+    if ! git -C "$COMMS_PATH" diff --quiet 2>/dev/null || [ -n "$(git -C "$COMMS_PATH" status --porcelain 2>/dev/null | head -1)" ]; then
+      git -C "$COMMS_PATH" add -A
+      git -C "$COMMS_PATH" -c user.name="${USER:-$(id -un)}" -c user.email="${USER:-$(id -un)}@$(hostname 2>/dev/null || echo local)" commit -qm "session data: comms-sync export $(date +%Y-%m-%d\ %H:%M)"
+      echo "committed pending session data"
+    fi
+    if git -C "$COMMS_PATH" push --atomic origin "$BRANCH" 2>"$TMPSYNC/push.err"; then
+      echo "exported: $(git -C "$COMMS_PATH" rev-parse --short HEAD) -> origin"
+    else
+      cat "$TMPSYNC/push.err" >&2
+      die "push failed (refusal above is either the credential hook or the remote; do NOT --no-verify without recording why)"
+    fi
+    ;;
+
+  remote)
+    URL="${1:-}"; shift || true
+    resolve_comms "${1:-}"
+    [ -n "${URL:-}" ] || die "usage: comms-sync remote <url> [<comms-path>]"
+    EXISTING="$(git -C "$COMMS_PATH" remote get-url origin 2>/dev/null)" || true
+    if [ -n "$EXISTING" ] && [ "$EXISTING" != "$URL" ]; then
+      die "origin already points at $EXISTING — re-wiring is deliberate: git -C $COMMS_PATH remote set-url origin <url>"
+    fi
+    if [ -n "$EXISTING" ]; then
+      echo "origin already points at $URL — nothing to do"; exit 0
+    fi
+    if ! git ls-remote "$URL" >/dev/null 2>"$TMPSYNC/ls.err"; then
+      cat "$TMPSYNC/ls.err" >&2
+      die "remote not reachable — create it first (GitHub: <slug>-comms, private), check auth (gh auth status), then re-run"
+    fi
+    git -C "$COMMS_PATH" remote add origin "$URL"
+    echo "origin -> $URL (verify tracking after first push: git -C $COMMS_PATH push -u origin master)"
+    ;;
+
+  status)
+    resolve_comms "${1:-}"
+    BRANCH="$(git -C "$COMMS_PATH" branch --show-current)"
+    echo "repo:    $COMMS_PATH"
+    echo "branch:  ${BRANCH:-detached}"
+    git -C "$COMMS_PATH" fetch origin --quiet 2>/dev/null || true
+    AHEAD="$(git -C "$COMMS_PATH" rev-list --count "@{u}..HEAD" 2>/dev/null || echo "?")"
+    BEHIND="$(git -C "$COMMS_PATH" rev-list --count "HEAD..@{u}" 2>/dev/null || echo "?")"
+    DIRTY="$(git -C "$COMMS_PATH" status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
+    HOOK_ACTIVE="$COMMS_PATH/.git/hooks/pre-push"
+    TRACKED="$COMMS_PATH/hooks/pre-push"
+    HOOK="missing"
+    [ -x "$HOOK_ACTIVE" ] && { HOOK="present"; cmp -s "$HOOK_ACTIVE" "$TRACKED" && HOOK="present+parity" || HOOK="DRIFTED-from-tracked"; }
+    echo "remote:  $(git -C "$COMMS_PATH" remote get-url origin 2>/dev/null || echo 'NOT WIRED')"
+    echo "ahead/behind upstream: $AHEAD/$BEHIND"
+    echo "dirty entries: $DIRTY"
+    echo "hook: $HOOK"
+    [ "$HOOK" = "present+parity" ] || [ "$HOOK" = "present" ] || echo "  self-heal: comms-sync export (stamps before pushing)"
+    ;;
+
+  -h|--help|help) usage ;;
+  *) usage ;;
+esac

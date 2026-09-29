@@ -1,0 +1,13 @@
+{
+  "unit": "comms-git-02",
+  "artifact": "05-bash32-docker",
+  "interpreter": "bash 3.2.57 (bash:3.2 docker, musl) + provisioned git",
+  "results": {
+    "remote_wiring": true,
+    "self_heal": true,
+    "parity": true,
+    "convergence": "CONVERGED_a74a2a6",
+    "leak_refused_after_heal": "exit 1, remote stayed at clean tip",
+    "raw": "unit2-bash32.txt"
+  }
+}

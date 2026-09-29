@@ -1,0 +1,12 @@
+{
+  "unit": "comms-git-02",
+  "artifact": "01-export-import",
+  "interpreter": "GNU bash 5.3 (host) + real GitHub remote spot-check",
+  "flow": {
+    "node_A_seal_export": "session sealed + comms-sync export → 'exported: 1743f02 -> origin'",
+    "node_B_clone_import": "comms-sync import → fast-forward pull, handoff files present",
+    "byte_identical_handoffs": true,
+    "tips_identical": "both nodes at 1743f02",
+    "real_remote": "comms-sync export/import against https://github.com/paddyodab/multiplayer-shared-context-ai-comms.git: b663cfe round-trip, status 'present+parity'"
+  }
+}

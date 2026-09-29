@@ -1,0 +1,11 @@
+{
+  "unit": "comms-git-02",
+  "artifact": "04-status-remote",
+  "flow": {
+    "status_accurate": "branch/ahead-behind/dirty/hook-parity on fixture and real repo",
+    "remote_refuses_different_url": "exit 1 naming git remote set-url",
+    "remote_same_url_noop": "'already points at — nothing to do'",
+    "remote_unreachable": "ls-remote fails → exit 1 'remote not reachable — create it first (<slug>-comms, private)'",
+    "import_no_remote": "refusal names comms-sync remote <url>"
+  }
+}
