@@ -12,6 +12,9 @@
 #   3. Installs the CURRENT scripts (session-start.sh, session-end.sh) + templates
 #      from the runbook copy this script ships with — so an old folder's stale
 #      single-user scripts are replaced, not trusted.
+#   3b. comms-as-git: init's comms/ as a git repo (initial commit of the protocol
+#      files) when .git is absent, and stamps/renews the credential pre-push hook
+#      whenever it is missing or stale (clones never inherit hooks). Idempotent.
 #   4. Refuses to guess: an unsealed draft keeps its SEAL marker (it stays a draft
 #      after the move); handoff paths inside ledgers are NOT rewritten — the ledger
 #      keys on absolute path, so old entries keep pointing at their handoff. New
@@ -20,6 +23,7 @@
 #      new address.
 #
 # NOT done here (deliberate):
+#   - No remote wiring (no URL guessing) — deliberate operator step.
 #   - No ledger migration (per-user ledgers; old entries stay where they were).
 #   - No herdr/omp config changes.
 #   - No migration of prior-art/ artifacts/ work/ — layout-agnostic already.
@@ -135,6 +139,48 @@ for f in session-start.sh session-end.sh; do
     echo "comms/$f replaced with current (user-keyed) version"
   fi
 done
+
+# --- 3b. comms-as-git: init the repo + stamp the credential pre-push hook -------
+# Idempotent: init only when .git is absent (a pre-fork folder has none); stamp
+# the hook whenever it is missing or stale (clones don't inherit hooks — the
+# same self-heal comms-sync export owns later; wired here for every node that
+# might push). The hook's source is the tracked copy at comms/hooks/pre-push,
+# extracted from the SAME scaffold heredoc this script already extracts the
+# session scripts from (one source, two consumers).
+HOOK_SRC_LINE="$(awk '/cat > "\$STAGE\/comms-hook-pre-push"/ {print NR; exit}' "$SCAFFOLD")"
+[[ -n "$HOOK_SRC_LINE" ]] || die "scaffold hook heredoc marker not found"
+extract_hook() {
+  awk -v n="$HOOK_SRC_LINE" 'NR>n { print }' "$SCAFFOLD" \
+    | awk 'BEGIN{done=0} !done && /^HOOK_EOF$/ {done=1; exit} !done { print }'
+}
+extract_hook > "$TMPDIR_M/pre-push"
+[[ -s "$TMPDIR_M/pre-push" ]] || die "extracted pre-push hook is empty — scaffold drift"
+bash -n "$TMPDIR_M/pre-push" || die "extracted hook fails syntax check — scaffold drift"
+if [[ ! -d "$COMMS/.git" ]]; then
+  command -v git >/dev/null 2>&1 || die "git not found — comms/ must be a git repo for history transport; install git and re-run"
+  mkdir -p "$COMMS/hooks"
+  cp "$TMPDIR_M/pre-push" "$COMMS/hooks/pre-push" && chmod +x "$COMMS/hooks/pre-push"
+  git -C "$COMMS" init -q
+  GIT_ID_NAME="$(git config user.name 2>/dev/null || echo "${USER_NAME:-$(id -un 2>/dev/null || echo comms)}")"
+  GIT_ID_EMAIL="$(git config user.email 2>/dev/null || echo "${USER_NAME:-comms}@$(hostname 2>/dev/null || echo local)")"
+  git -C "$COMMS" add -A
+  git -C "$COMMS" -c user.name="$GIT_ID_NAME" -c user.email="$GIT_ID_EMAIL" commit -q \
+    -m "comms protocol + credential pre-push hook (stamped by migrate-user-comms.sh)"
+  echo "comms/ initialized as a git repo (initial commit made)"
+else
+  echo "comms/ already a git repo"
+fi
+if [[ ! -x "$COMMS/.git/hooks/pre-push" ]] || ! cmp -s "$COMMS/.git/hooks/pre-push" "$TMPDIR_M/pre-push"; then
+  cp "$TMPDIR_M/pre-push" "$COMMS/.git/hooks/pre-push" && chmod +x "$COMMS/.git/hooks/pre-push"
+  if [[ -d "$COMMS/.git" ]]; then
+    mkdir -p "$COMMS/hooks"
+    cp "$TMPDIR_M/pre-push" "$COMMS/hooks/pre-push" && chmod +x "$COMMS/hooks/pre-push"
+  fi
+  echo "credential pre-push hook stamped (was missing or stale)"
+else
+  echo "credential pre-push hook already current"
+fi
+git -C "$COMMS" status --porcelain >/dev/null 2>&1 || die "comms/ git repo invalid after migrate"
 
 # --- 4. report -------------------------------------------------------------------
 if [[ -d "$USER_COMMS" ]]; then

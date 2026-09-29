@@ -1,0 +1,16 @@
+{
+  "unit": "comms-git-01",
+  "artifact": "01-scaffold-init",
+  "interpreter": "GNU bash 5.3 (host)",
+  "fresh_scaffold": {
+    "runs_non_interactively": true,
+    "exit": 0,
+    "comms_repo_valid": true,
+    "one_initial_commit": true,
+    "hook_executable": true,
+    "tracked_hook_copy": true,
+    "gitignore_stamped": true,
+    "next_step_print_names_remote_wiring": true
+  },
+  "detail": "Fresh scaffold run (stdin-fed answers) \u2192 comms/ git repo, single commit 'comms protocol + credential pre-push hook (stamped by new-enclosing-folder.sh)', .git/hooks/pre-push + tracked comms/hooks/pre-push both executable and cmp-identical, final print instructs git -C comms remote add origin <url> (no URL guessing)."
+}

@@ -1,0 +1,16 @@
+{
+  "unit": "comms-git-01",
+  "artifact": "05-bash32-docker-suite",
+  "interpreter": "GNU bash 3.2.57 (bash:3.2 docker, musl) + git 2.49.1 (provisioned with apk)",
+  "lifecycle_gate": {
+    "exit": 0,
+    "summary": "28 pass, 0 fail"
+  },
+  "suite_parts": {
+    "1_scaffold": "non-interactive scaffold rc=0, repo valid, one commit, hook exec + parity",
+    "3_gate": "28/28 comms-as-git extended set",
+    "4_migrate": "init + hook stamp on pre-fork folder, no-op verified",
+    "6_leak_push": "REFUSED via real push (rc=141 = SIGPIPE-on-refusal); --no-verify pushed across"
+  },
+  "environment_note": "bash:3.2 image ships NO git; proof provisions apk add git \u2014 outside container-scope git is assumed present (macOS ships it; machine.md fresh-box installs it)"
+}

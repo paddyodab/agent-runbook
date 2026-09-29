@@ -1,5 +1,6 @@
 #!/bin/bash
-# comms-lifecycle-test.sh — prove the user-keyed comms protocol with TWO fake users.
+# comms-lifecycle-test.sh — prove the user-keyed comms protocol with TWO fake users,
+# and the comms-as-git tier (unit comms-git-01) on the same fixture.
 #
 # Drives session-start.sh / session-end.sh through the full lifecycle as u1 and u2:
 #   1. u1 fresh start                 → comms/u1/<today>-01/ created, no prior handoff
@@ -12,6 +13,9 @@
 #   8. u2 seal via explicit arg       → u1 seals u2's draft (cross-user salvage path)
 #   9. bad names refused              → templates, bad/user/path, unknown option
 #  10. bare seal with no session      → refuses, names the prefixed salvage command
+#  11. comms-as-git unit (comms-git-01): comms/ a valid repo with history, tracked +
+#      active hook copies identical, hook REFUSES a token-shaped commit (names file:line
+#      + the --no-verify escape), POSITIVE control: an innocent range passes
 #
 # Runs the scripts as-is; user identity comes from $COMMS_TEST_USER (the scripts read
 # USER). Each assertion is observable: exit code + filesystem effect + stdout/stderr.
@@ -212,5 +216,66 @@ echo "$OUT" | grep -q "Resuming from sealed handoff: comms/u2/$TODAY-01/session-
   && ok "newest date-seq wins across users (not path order)" || fail "chronology" "wrong: $OUT"
 
 echo
-echo "== RESULTS: $PASS pass, $FAIL fail (18 assertions) =="
+echo "== 11. comms-as-git (unit 1): repo valid + credential hook fires (8 assertions)"
+# The fixture comms/ was staged byte-wise from the SOURCE scaffold's comms/ — a
+# scaffold-stamped folder brings .git, .gitignore, hooks/pre-push with it. A live
+# folder also has them (post-unit-1). If the source comms isn't a repo (a
+# pre-unit-1 fixture), these assertions still must be HONEST: skip-count them as
+# absence proofs, never as green-by-silence.
+if [ ! -d "$SCRIPTS/.git" ]; then
+  fail "comms-as-git repo present" "source comms/ has no .git — scaffold predates unit 1? re-scaffold or run migrate first"
+else
+  git -C "$SCRIPTS" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
+    && ok "comms/ is a valid git repo" \
+    || fail "comms-as-git repo" "git rev-parse failed inside fixture"
+  git -C "$SCRIPTS" log --oneline 2>/dev/null | grep -q . \
+    && ok "comms repo has history (initial commit)" \
+    || fail "comms-as-git history" "no commits"
+  [ -x "$SCRIPTS/hooks/pre-push" ] \
+    && ok "tracked hook copy present (comms/hooks/pre-push)" \
+    || fail "tracked hook" "missing comms/hooks/pre-push"
+  [ -x "$SCRIPTS/.git/hooks/pre-push" ] \
+    && ok "active hook stamped (.git/hooks/pre-push executable)" \
+    || fail "active hook" "missing or non-executable"
+  cmp -s "$SCRIPTS/hooks/pre-push" "$SCRIPTS/.git/hooks/pre-push" \
+    && ok "hook copies identical (tree vs active)" \
+    || fail "hook parity" "tree and .git/hooks copies differ"
+  # HOOK-FIRES: drive a real push through the fixture repo. Remote = bare sibling.
+  # Invocation mirrors real git: hooks run with CWD = repo root, so the harness
+  # subshells into the repo (invoking by absolute path from elsewhere finds no
+  # repo and skips every ref — silent-green would be the worst failure mode).
+  HOOKFIX="$RUNROOT/hookrepo.git"
+  git clone -q --bare "$SCRIPTS" "$HOOKFIX" 2>/dev/null
+  # feed a leaky push plan: new commits carrying a fake-but-shaped token
+  LEAK_COMMIT_LINE='token = "gate-leak-test-9999"'
+  echo "$LEAK_COMMIT_LINE" > "$SCRIPTS/.gate-leak.md"
+  git -C "$SCRIPTS" add .gate-leak.md
+  git -C "$SCRIPTS" -c user.name=gate -c user.email=gate@gate commit -qm "gate leak probe" >/dev/null 2>&1
+  LATEST="$(git -C "$SCRIPTS" rev-parse HEAD)"
+  BEFORE="$(git -C "$SCRIPTS" rev-parse HEAD~1 2>/dev/null || git -C "$SCRIPTS" rev-list --max-parents=0 HEAD)"
+  if (cd "$SCRIPTS" && echo "refs/heads/master $LATEST refs/heads/master $BEFORE" \
+      | bash .git/hooks/pre-push) 2>"$LIFECYCLE_HOME/.hookerr"; then
+    fail "hook refuses credential commit" "exit 0 on a token-shaped push"
+  else
+    ok "hook refuses credential-shaped commit (exit 1)"
+    grep -q "credential-shaped" "$LIFECYCLE_HOME/.hookerr" \
+      && ok "refusal explains itself" || fail "hook refusal text" "no explanation: $(cat "$LIFECYCLE_HOME/.hookerr")"
+    grep -q "gate-leak-test-9999" "$LIFECYCLE_HOME/.hookerr" \
+      && ok "refusal names the offending line" || fail "offending line" "not quoted"
+    grep -q -- "--no-verify" "$LIFECYCLE_HOME/.hookerr" \
+      && ok "refusal names the deliberate escape" || fail "escape hatch" "not named"
+  fi
+  # POSITIVE CONTROL: a clean push must pass the same hook (same path, same input shape)
+  git -C "$SCRIPTS" reset -q --hard "$BEFORE"
+  CLEAN="$(git -C "$SCRIPTS" rev-parse HEAD)"
+  if (cd "$SCRIPTS" && echo "refs/heads/master $CLEAN refs/heads/master $BEFORE" \
+      | bash .git/hooks/pre-push) 2>"$LIFECYCLE_HOME/.hookerr"; then
+    ok "positive control: clean range passes the hook"
+  else
+    fail "clean push blocked" "hook refused an innocent range: $(cat "$LIFECYCLE_HOME/.hookerr" | head -2)"
+  fi
+fi
+
+echo
+echo "== RESULTS: $PASS pass, $FAIL fail (comms-as-git extended set) =="
 [ "$FAIL" = 0 ]

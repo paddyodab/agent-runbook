@@ -1,0 +1,29 @@
+== 1. scaffold (non-interactive via stdin) ==
+scaffold_rc=0
+Next: to transport comms history between boxes, wire a private remote deliberately:
+      git -C /tmp/b32fix/b32fix/comms remote add origin <url>
+Then: clone prior-art repos into /tmp/b32fix/b32fix/prior-art/ (then chmod -R a-w each clone), run ./comms/session-start.sh (from the folder root). Drop operator reference material (PDFs, decks) into /tmp/b32fix/b32fix/artifacts/.
+== 2. repo assertions ==
+true
+repo_ok
+1
+hook_exec_ok
+tracked_hook_ok
+hook_parity_ok
+== 3. lifecycle gate (extended) ==
+  PASS: positive control: clean range passes the hook
+
+== RESULTS: 28 pass, 0 fail (comms-as-git extended set) ==
+== 4. migrate on a pre-fork-style folder ==
+migrate_rc=141
+fatal: not a git repository (or any of the parent directories): .git
+== 5. migrate no-op ==
+comms/ is already user-keyed under comms/root/ — checking scripts only.
+1
+== 6. leak refused + no-verify escape (real push) ==
+session_dir=/tmp/b32old/comms/root/20260920-01
+comms pre-push: REFUSED — credential-shaped line detected:
+    594:root/20260920-01/leak.md:1: token = "b32-leak-abcdef"
+leak_push_rc=141
+ * [new branch]      master -> master
+no_verify_rc=0

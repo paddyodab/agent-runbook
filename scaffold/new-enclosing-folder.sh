@@ -34,6 +34,33 @@ finish() {
   # into place — all inside the staging dir, so an aborted scaffold leaves nothing
   sed "1s/<folder-slug>/$FOLDER/" "$STAGE/AGENTS.md" > "$STAGE/AGENTS.md.tmp" && mv "$STAGE/AGENTS.md.tmp" "$STAGE/AGENTS.md"
   chmod +x "$STAGE/comms/session-start.sh" "$STAGE/comms/session-end.sh"
+  # comms/ IS a git repo from day one (transport tier): initial commit of the
+  # protocol files + the credential pre-push hook stamped active (.git/hooks/).
+  # The hook's canonical copy rides the initial commit at comms/hooks/pre-push so
+  # migrate/clones can re-stamp from tracked source (clones don't inherit hooks).
+  # No remote wiring — that's a deliberate operator step (unit-2 comms-sync
+  # remote, or plain git remote add). Refuse-to-guess: if git is missing, the
+  # scaffold fails loudly BEFORE the move (atomic construction holds).
+  if ! command -v git >/dev/null 2>&1; then
+    echo "error: git not found on PATH — comms/ must be a git repo for session history to transport; install git and re-run" >&2
+    exit 1
+  fi
+  # stamp the hook ACTIVE in .git/hooks/ AND keep a tracked copy at comms/hooks/
+  # (clones don't inherit hooks; the tracked copy is what migrate / comms-sync
+  # re-stamp from). core.hooksPath stays default: .git/hooks/ is what runs.
+  mkdir -p "$STAGE/comms/hooks" "$STAGE/comms/.git/hooks"
+  mv "$STAGE/comms-hook-pre-push" "$STAGE/comms/hooks/pre-push"
+  chmod +x "$STAGE/comms/hooks/pre-push"
+  cp "$STAGE/comms/hooks/pre-push" "$STAGE/comms/.git/hooks/pre-push"
+  chmod +x "$STAGE/comms/.git/hooks/pre-push"
+  git -C "$STAGE/comms" init -q
+  GIT_AUTHOR_NAME="$(git config user.name 2>/dev/null || echo "${USER:-$(id -un 2>/dev/null || echo comms)}")"
+  GIT_AUTHOR_EMAIL="$(git config user.email 2>/dev/null || echo "${USER:-comms}@$(hostname 2>/dev/null || echo local)")"
+  git -C "$STAGE/comms" add -A
+  git -C "$STAGE/comms" -c user.name="$GIT_AUTHOR_NAME" -c user.email="$GIT_AUTHOR_EMAIL" commit -q \
+    -m "comms protocol + credential pre-push hook (stamped by new-enclosing-folder.sh)"
+  # No remote wiring — deliberate operator step (comms-sync remote <url>, or git
+  # remote add origin <url>).
   mv "$STAGE" "$TARGET_REAL"
 }
 
@@ -43,19 +70,24 @@ cat > "$TARGET/README.md" <<EOF
 $PURPOSE
 
 This is an **enclosing folder**, not a git repository: it is not checked in. Only the
-repositories generated within it are tracked in git.
+repositories generated within it are tracked in git — including \`comms/\`, which is
+its own small git repo from day one (see "What's checked in").
 
 ## Folder convention
 
 \`\`\`
 $FOLDER/
 $CONVENTION
+  comms/.git/            <- comms/ is a git repo (transport + credential pre-push hook)
 \`\`\`
 
 ## What's checked in
 
 - The enclosing folder (\`$FOLDER/\`) is **not** a git repo.
-- \`comms/\` holds plain conversation/handoff files — **not** git-tracked. History lives on disk.
+- \`comms/\` IS its own small git repo (initialized by this scaffold) so session
+  history can transport between boxes — it syncs deliberately, at session boundaries
+  (see \`comms/README.md\` "The comms repo"); a \`pre-push\` hook scans pushes for
+  credentials and refuses them. Still nothing automatic.
 - \`prior-art/\` holds other people's repos, cloned as-is with their own \`.git\`; we read them only when directed, and never commit to them. Clones are made **read-only** on arrival (\`chmod -R a-w\`) — a prior-art repo is reference, never a work target. The copy we work on (if ever) is a separate clone at the folder root.
 - \`artifacts/\` holds project-scoped reference material (customer PDFs, decks, exports). It is **not** agent-browsable: open an artifact only when the operator or a handoff names it.
 - Repos we generate are git repos and **are** checked in.
@@ -68,7 +100,7 @@ $CONVENTION
    Those are the only comms files to read at session start. The newest sealed handoff is canonical state.
 4. \`prior-art/\` is reference material. Read a file from it **only** when a handoff, conversation, or the operator directs you to that specific file — do not scan or index prior-art by default. Prior-art clones are read-only: if a write there is needed, stop and ask; the work copy lives at the folder root.
 5. \`artifacts/\` is reference material the operator dropped or directed. Same access rule: named files only, never a directory scan. It is not comms history and not prior-art — it is source material for the work.
-6. Work lands in the built repo(s); conversation/handoffs land in \`comms/\`. Don't commit \`prior-art/\`, \`artifacts/\`, or \`comms/\`.
+6. Work lands in the built repo(s); conversation/handoffs land in \`comms/\`. Don't commit \`prior-art/\`, \`artifacts/\`, or the enclosing folder itself. (\`comms/\` is its own git repo — its commits stay inside \`comms/\`.)
 7. Do not edit past handoffs in place — write a new one in the new session's folder so state stays traceable. \`session-end.sh\` seals.
 8. To start a new, unrelated idea, make a new enclosing folder (run \`new-enclosing-folder.sh\`).
 
@@ -180,6 +212,9 @@ comms/
   session-start.sh           <- the intro (see above)
   session-end.sh             <- the outro (see above)
   templates/                 <- session-handoff.md + conversation.md skeletons
+  hooks/pre-push             <- credential scanner guarding every push (see below)
+  .gitignore                 <- throwaway classes never enter history (see below)
+  .git/                      <- comms/ IS a git repo (transport tier — see below)
   <user>/                    <- one subfolder per OS user (pd, dw, ...) — attribution
     <YYYYMMDD>-<NN>/         <- one folder per conversation session (sequence per user)
       session-handoff.md     <- what a fresh session must know to continue
@@ -248,7 +283,32 @@ state stays traceable.
 ## Outside comms/
 
 The enclosing folder root holds the purpose README and the studied/built repos. `comms/`
-records the conversation and state; it is not git-tracked.
+is its own small git repo (initialized by this scaffold at creation) so history can
+transport between boxes; the enclosing folder itself stays un-versioned.
+
+## The comms repo (transport + credential gate)
+
+`comms/` is a git repository. The scaffold makes the initial commit (protocol files:
+this README, the two scripts, templates/, hooks/, .gitignore); sessions commit as
+they form. No remote is wired automatically — when this folder's history should live
+on GitHub (private), wire it deliberately:
+
+    git -C comms remote add origin <url>     # or: comms-sync remote <url> (when installed)
+
+- **Sync is manual and intentional** (session boundaries or grab-and-go), never
+  automatic: import (`git pull --ff-only`) at session start, export (commit + push)
+  after sealing or at a work pause. A `comms-sync` wrapper automates just the
+  plumbing when installed; plain git works too.
+- **A `pre-push` credential scanner guards every push**: a push whose added lines
+  contain key/token-shaped material (AWS, GitHub, Slack, Anthropic, generic
+  `token = "…"`) is REFUSED, naming file+line. The escape hatch is
+  `git push --no-verify` — loud, deliberate, and it belongs in the session's
+  "Do not"-style record when used. Clones do NOT inherit hooks; re-run
+  `migrate-user-comms.sh <folder>` (or comms-sync export, when installed) to
+  re-stamp a missing hook.
+- A credential that slipped into history is not a hook problem — use the proven
+  force-push + gc playbook (rewrite, expire reflogs, prune), or contact your
+  platform about the exposed token. Never edit history casually.
 
 ## The engineering half (what the comms protocol does NOT carry)
 
@@ -833,6 +893,81 @@ cat > "$TARGET/comms/templates/conversation.md" <<'TEMPLATE_EOF'
 <!-- Operator-dropped files in this folder that need a sentence of context each. -->
 TEMPLATE_EOF
 
+cat > "$TARGET/comms/.gitignore" <<'GITIGNORE_EOF'
+# comms repo: transport the conversation, not the throwaway state.
+# Sessions and their contents (handoffs, drops, mind notes) ARE the history.
+*.tmp
+.stderr
+.env
+GITIGNORE_EOF
+
+# The credential pre-push hook ships ONE way: this heredoc is the single source.
+# The migrator extracts it by marker (HOOK_MARKER below) — do not hand-copy it
+# elsewhere; extend patterns here and re-prove the gate.
+cat > "$STAGE/comms-hook-pre-push" <<'HOOK_EOF'
+#!/usr/bin/env bash
+# comms pre-push credential scanner — refuses pushes whose ADDED lines carry
+# credential-shaped material. Reads the push plan on stdin (one
+# "<local-ref> <local-oid> <remote-ref> <remote-oid>" line per ref, as git
+# feeds pre-push). Deliberate escape: `git push --no-verify` — record why in
+# the session handoff when used. False negatives are expected (shape matching,
+# not secrets detection); extend the pattern set on the first real miss, in
+# the scaffold's HOOK_EOF heredoc (single source; migrator + clones re-stamp
+# from it), then re-prove the comms gate.
+set -u
+ZERO=0000000000000000000000000000000000000000
+# One alternation, single line — a LEADING empty arm (the old multi-line blob)
+# makes grep match EVERY line; keep the indent-tolerant prefix for assignment shapes.
+PATTERNS='AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{22,}|xox[baprs]-[A-Za-z0-9-]{10,}|sk-(ant-)?[A-Za-z0-9_-]{20,}|(api[_-]?key|secret|token|passwd|passw?d)[[:space:]]*[=:][[:space:]]*["'"'"'][^"'"'"']{8,}'
+# skip lines that are obviously examples/documentation
+EXCUSE='example|placeholder|<your|xxxx|sample|dummy|my-secret-token|redacted'
+refuse() {
+  echo "comms pre-push: REFUSED — credential-shaped line detected:" >&2
+  echo "    $1" >&2
+  echo "  If this is a false positive (a literal example, a documented fake), push" >&2
+  echo "  with:  git push --no-verify   — deliberately, and record why in the handoff." >&2
+  echo "  If it is REAL: revoke the credential NOW, then rewrite history (the proven" >&2
+  echo "  force-push + gc playbook) before any push; never push the leaking range." >&2
+  exit 1
+}
+# added_lines <commit>: "file:line: text" for each ADDED line (patch syntax
+# stripped; awk tracks file + new-file line number from hunk headers)
+added_lines() {
+  git diff-tree --root -p --no-commit-id "$1" | awk '
+    /^diff --git / { f = $0; sub(/^diff --git a\//, "", f); sub(/ b\/.*$/, "", f); next }
+    /^@@ / { split($3, a, ","); ln = substr(a[1], 2) - 1; next }
+    /^\+\+\+ / { next }
+    /^\+/ { ln++; print f ":" ln ": " substr($0, 2) }
+  '
+}
+scan() { # <local-oid> <remote-oid> -> refuses (exit 1) on first hit
+  lo="$1"; ro="$2"
+  if [ "$ro" = "$ZERO" ]; then
+    revs="$(git rev-list --reverse "$lo")"          # new branch: whole history
+  else
+    revs="$(git rev-list --reverse "${ro}..${lo}")"
+  fi
+  [ -n "$revs" ] || return 0
+  HIT="$(printf '%s\n' "$revs" | while IFS= read -r c; do added_lines "$c"; done \
+    | grep -IvE "$EXCUSE" | grep -InE "$PATTERNS" | head -1)"
+  if [ -n "$HIT" ]; then refuse "$HIT"; fi
+  return 0
+}
+rc=0
+while read -r lref lo rref ro; do
+  [ -n "${lo:-}" ] || continue
+  [ "$lo" = "$ZERO" ] && continue        # deleted ref: nothing added
+  git cat-file -e "$lo" 2>/dev/null || continue
+  scan "$lo" "$ro" || rc=1
+done
+exit "$rc"
+HOOK_EOF
+
+# git init inside the staging comms/ happens in finish() (after file writes).
+# The hook is stamped from heredoc to .git/hooks/ — NOT kept as a working-tree
+# copy (hooks/ lives inside .git only; the tree carries it via the initial commit's
+# tracked copy at comms/hooks/pre-push for migrate/clones to re-stamp from).
+
 cat > "$STAGE/AGENTS.md" <<'AGENTS_EOF'
 # AGENTS.md — <folder-slug> enclosing folder
 
@@ -864,6 +999,10 @@ This enclosing folder has a **scripted session protocol**. Follow it mechanicall
 Conventions in force: `README.md` at the folder root (folder purpose, what's tracked);
 `comms/README.md` (the protocol above, folder layout, handoff contract). Past handoffs are
 immutable — write new ones. Work lands in the built repos; conversation lands in `comms/`.
+`comms/` is its own small git repo (transport tier): history moves between boxes ONLY
+deliberately — export after a seal or at a grab-and-go pause, import at session start —
+and its `pre-push` hook refuses credential-shaped material; the escape is
+`git push --no-verify`, loud and deliberate, and never automatic firing.
 
 Standing access rules: `prior-art/` clones are read-only reference — read named files when
 directed, never scan, never write (a work copy of anything lives at the folder root). Ticket
@@ -891,4 +1030,7 @@ echo "  - $TARGET_REAL/README.md"
 echo "  - $TARGET_REAL/AGENTS.md (session protocol, auto-loaded by agent sessions)"
 echo "  - $TARGET_REAL/comms/README.md"
 echo "  - $TARGET_REAL/comms/session-start.sh + session-end.sh + templates/"
-echo "Next: clone prior-art repos into $TARGET_REAL/prior-art/ (then chmod -R a-w each clone), run ./comms/session-start.sh (from the folder root). Drop operator reference material (PDFs, decks) into $TARGET_REAL/artifacts/."
+echo "  - $TARGET_REAL/comms/ is a git repo (initial commit made; credential pre-push hook active)"
+echo "Next: to transport comms history between boxes, wire a private remote deliberately:"
+echo "      git -C $TARGET_REAL/comms remote add origin <url>"
+echo "Then: clone prior-art repos into $TARGET_REAL/prior-art/ (then chmod -R a-w each clone), run ./comms/session-start.sh (from the folder root). Drop operator reference material (PDFs, decks) into $TARGET_REAL/artifacts/."

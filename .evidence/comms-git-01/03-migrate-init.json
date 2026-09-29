@@ -1,0 +1,11 @@
+{
+  "unit": "comms-git-01",
+  "artifact": "03-migrate-init-and-selfheal",
+  "interpreter": "GNU bash 5.3 (host) + bash 3.2.57 (docker)",
+  "migrate_behavior": {
+    "prefork_folder_no_git": "init lands, history starts at 'comms protocol + credential pre-push hook (stamped by migrate-user-comms.sh)', hook stamped active",
+    "idempotent_second_run": "no new commit (log count stable), 'already current' reported for repo + hook",
+    "hook_self_heal": "deleted .git/hooks/pre-push \u2192 next run re-stamps both active + tracked copies",
+    "live_enclosing_folder_migrated_this_session": true
+  }
+}

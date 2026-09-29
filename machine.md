@@ -177,7 +177,44 @@ survives two real users.
    sudo adduser --ingroup shared dw
    ```
 3. **Enclosing folder**: create via the scaffold ON THE BOX (install.sh puts
-   `new-enclosing-folder.sh` on PATH), or rsync an existing folder up.
+   `new-enclosing-folder.sh` on PATH), or rsync an existing folder up. The scaffold
+   init's `comms/` as a git repo automatically — for cross-node transport, wire the
+   remote deliberately after creation:
+   ```bash
+   git -C /srv/<slug>/comms remote add origin <private-github-url>
+   ```
+   Every node that pushes needs the credential pre-push hook — clones do NOT inherit
+   hooks; `./migrate-user-comms.sh <folder>` re-stamps it (idempotent), and the gate's
+   comms-as-git section refuses a fixture whose hook is missing.
+
+   **gh on the box** (the EC2 Ubuntu image is bare; `machine.yml`'s runtime_deps are for
+   the sandbox image, not this box): install gh in the pre-req sequence —
+   ```bash
+   curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
+     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+     | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+     && sudo apt update && sudo apt install -y gh git
+   ```
+   **Egress check at deploy (before the above):** the box needs outbound HTTPS for
+   apt/unattended-upgrades/mise/gh — the VPN SG entry governs INBOUND only:
+   ```bash
+   curl -sI https://api.github.com | head -1   # expect: HTTP/2 200
+   ```
+   Failure here is the same peering-class of problem as SSH inbound — devops ticket,
+   not a code fix.
+
+   **Per-user gh auth (never pooled):** as each user, on the box (mirrors the Copilot
+   device-flow recipe in step 6):
+   ```bash
+   gh auth login   # choose HTTPS + "Login with a web browser"; device code prints
+                   # — finish github.com/login/device on YOUR laptop browser
+   gh auth setup-git   # once per user: wires gh's credential helper into git
+                        # (this is what authenticates comms-repo pushes)
+   gh auth status      # verify: shows the account + scopes
+   ```
+   Scopes requested = repo read/write (comms repos are private). Attribution +
+   offboarding = GitHub seat management (same pattern as Copilot seats). Two users on
+   one box = two gh identities, never a shared one.
 4. **Seed content from the work laptop FIRST — while pd still owns the tree**
    (the "state of the state": Snowflake staging spec, artifacts/, prior-art/):
    ```bash

@@ -1,0 +1,7 @@
+{
+  "unit": "comms-git-01",
+  "artifact": "04-no-verify-escape",
+  "interpreter": "GNU bash 5.3 (host) + bash 3.2.57 (docker)",
+  "behavior": "git push --no-verify carries a credential commit across (verified: remote ref advanced); refusal text names the escape \u2014 loud, deliberate, preserved",
+  "note": "no-verify is an intentional operator action; hook remains a scanner not a blocker"
+}

@@ -26,8 +26,9 @@ skills/
   turborepo/       — vendored vercel/turborepo skill (canary.4): the monorepo build
                      system, so monorepo work walks the doors with turbo knowledge
 scaffold/
-  new-enclosing-folder.sh — one idea, one folder: comms/ + prior-art/ (read-only) +
-                     artifacts/ + built repos
+  new-enclosing-folder.sh — one idea, one folder: comms/ (a git repo from day one:
+                     credential-scanning pre-push hook guards every push) +
+                     prior-art/ (read-only) + artifacts/ + built repos
 machine.yml       — the declarative machine: omp version pin, runtime deps, skill
                      list, ticketing adapter slot (none | gh-issues | shortcut)
 machine.md        — fresh-box sequence: turn any box (laptop, VPS, docker sandbox)
@@ -42,13 +43,19 @@ install.sh        — classic (this tree) and --machine (manifest-driven) modes,
                      plus --doctor (read-only: deps/adapter/secrets in machine
                      mode; skills×2 roots, AGENTS block parity, scaffold/migrator
                      parity + everything above in machine mode — both modes)
-comms-lifecycle-test.sh — the comms gate: 18-assertion two-fake-user run in a
+comms-lifecycle-test.sh — the comms gate: 28-assertion two-fake-user run in a
                      disposable /tmp fixture staged from the named folder's comms/
-                     scaffold (live enclosing folders are safe to point at)
-migrate-user-comms.sh — one-command migration of pre-multi-user enclosing folders
+                     scaffold (live enclosing folders are safe to point at); §11
+                     proves the comms-as-git tier (valid repo + credential pre-push
+                     hook refuses a leaky push, passes an innocent one)
+migrate-user-comms.sh — one-command migration of pre-multi-user enclosing folders;
+                     also init's comms/ as a git repo + stamps the credential hook
+                     on old folders (idempotent)
 SMOKE.md          — post-install checklist: prove the toolkit is live in a fresh session
 AGENTS.md         — the marked standing-behavior block install.sh appends to ~/.omp/agent/AGENTS.md
-intent-shared-comms.md — the multi-user comms unit's contract (sealed intent)
+intent-shared-comms.md — the multi-user comms unit's contract (sealed intent);
+                     unit comms-git-01's contract lives at
+                     `.evidence/comms-git-01/INTENT.md`
 sandbox-test.sh   — the proof: docker container + fresh HOME + machine install + pinned omp
 sbx-test.sh       — the same proof in a real Docker Sandbox microVM (sbx create shell)
 .evidence/        — numbered JSON artifacts + PROOF.md per proven unit
@@ -121,7 +128,7 @@ live in a fresh session. If all pass, the agent behaves; no prior context needed
 For the machine/fresh-box path, the equivalent is `./sandbox-test.sh` (docker) plus the
 machine checks in [machine.md](machine.md). Existing enclosing folders predating the
 multi-user layout migrate with `./migrate-user-comms.sh <folder>` (idempotent); the
-comms protocol's own gate is `./comms-lifecycle-test.sh <folder>` — 18 assertions in
+comms protocol's own gate is `./comms-lifecycle-test.sh <folder>` — 28 assertions in
 a disposable /tmp fixture (green on bash 5.3 and stock bash 3.2); pointing it at a
 live enclosing folder is safe by construction, it never mutates what you name.
 
@@ -131,9 +138,20 @@ For one box shared by several users over SSH/herdr (AWS or any Linux server): th
 protocol is **user-keyed** — `comms/<user>/<YYYYMMDD>-<NN>/` — with a cross-user
 canonical state (newest sealed handoff anywhere wins). Deployment runbook: the
 "Shared-context box" section of [machine.md](machine.md). Protocol proofs:
-`./comms-lifecycle-test.sh <enclosing-folder>` (two fake users, 18 assertions, run
+`./comms-lifecycle-test.sh <enclosing-folder>` (two fake users, 28 assertions, run
 in a disposable /tmp fixture — the named folder is only read; green on bash 5.3 and
 stock bash 3.2), evidence in `.evidence/shared-comms-01/`.
+
+## Comms-as-git (transport tier)
+
+`comms/` is a small git repo from the day the scaffold creates it. History moves
+between nodes ONLY deliberately (session boundaries or grab-and-go): today that is
+plain `git -C comms pull --ff-only` / `commit` + `push`; unit 2 (`comms-sync`) wraps
+exactly that plumbing. The **credential pre-push hook** ships stamped on every
+scaffold and is re-stamped by the migrator — a push whose added lines carry
+credential-shaped material is refused with file+line; the escape is
+`git push --no-verify`, deliberately. Evidence: `.evidence/comms-git-01/`
+(INTENT.md = the unit contract).
 
 ## Conventions
 

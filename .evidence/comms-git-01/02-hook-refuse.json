@@ -1,0 +1,22 @@
+{
+  "unit": "comms-git-01",
+  "artifact": "02-hook-refuse-and-control",
+  "interpreter": "GNU bash 5.3 (host) + bash 3.2.57 (docker, git 2.49)",
+  "hook_behavior": {
+    "refuses_aws_shaped": "AKIAIOSFODNN7EXAMPLEFAKE \u2192 REFUSED, file:line named",
+    "refuses_github_pat": "ghp_<37 alnum> \u2192 REFUSED",
+    "refuses_slack": "xoxb-123456789012 \u2192 REFUSED",
+    "refuses_anthropic": "sk-ant-<20+> \u2192 REFUSED",
+    "refuses_generic_assignment": "token = \"supersecret999\" \u2192 REFUSED",
+    "allows_example_lines": "token = \"example-only-not-real\" \u2192 PASSES (EXCUSE filter)",
+    "positive_control_ordinary_commit": "handoff prose \u2192 hook exit 0, push lands",
+    "real_push_refusal": "git push with hook installed \u2192 push fails, remote ref unchanged (verified)",
+    "self_scan": "hook's own committed source (whole-history new-branch scan) \u2192 exit 0"
+  },
+  "refusal_text_includes": [
+    "credential-shaped line detected",
+    "file:line of match",
+    "git push --no-verify escape",
+    "revoke NOW + rewrite playbook"
+  ]
+}
