@@ -1,0 +1,24 @@
+{
+  "unit": "fresh-box-01",
+  "proof": "03-docker-e2e",
+  "date": "2026-09-30",
+  "interpreters": ["debian:stable-slim + bash 5.2 (real network, fresh user fbuser)", "bash:3.2 alpine (interpreter compatibility leg)"],
+  "checks": [
+    {"assert": "PRE --check rc=1 honest on bare box", "result": "PRE_CHECK_RC=1", "pass": true},
+    {"assert": "gh keyring + apt source + install land when gh missing (official recipe)", "result": "gh version 2.102.0 (2026-09-30) on PATH after run", "pass": true},
+    {"assert": "runbook cloned to ~/Documents/GitHub/agent-runbook (public clone, no auth)", "result": "CLONE_OK", "pass": true},
+    {"assert": "PATH marker written exactly once across full+idempotent runs", "result": "MARKERS=1", "pass": true},
+    {"assert": "idempotent re-run rc=0", "result": "IDEM_RC=0", "pass": true},
+    {"assert": "runbook's own install.sh --machine runs green right after fresh-box (PATH exported as a fresh login shell would)", "result": "INST_RC=0; tools in ~/.local/bin: comms-sync, migrate-user-comms.sh, new-enclosing-folder.sh, fresh-box.sh (from the pushed tree); fresh-box installer line 'fresh-box installed' present", "pass": true},
+    {"assert": "doctor sweep includes fresh-box.sh; drift is caught", "result": "post-drift doctor: '~/.local/bin/fresh-box.sh: drifted from this repo's copy'; post-install doctor parity OK (cmp vs repo copy)", "pass": true},
+    {"assert": "doctor bill on provisioned container excludes only the EXPECTED bare-box gaps (omp/herdr by --no-omp --no-herdr flags; deps all ok)", "result": "remaining doctor lines = omp binary + optional glow/herdr only; no fresh-box/skill/tool drift", "pass": true},
+    {"assert": "bash:3.2 leg: interpreter parses + full idempotent flow rc=0 (deps present path; gh via PATH stand-in — real gh install proven on debian leg)", "result": "B32_FULL_RC=0, B32_IDEM_RC=0, MARKERS=1, check bill correct", "pass": true},
+    {"assert": "git+curl preinstalled contract honored (stripped container refused honestly, named the hatch)", "result": "'git and/or curl missing — those are the base image's contract … Hatch: apt-get install -y git curl'", "pass": true},
+    {"assert": "non-apt platform refusal (busybox/alpine leg where apt-get absent)", "result": "'apt-get not found — non-Debian-class … Hatch: install the apt packages by hand'", "pass": true}
+  ],
+  "notes": [
+    "install.sh from the container's checked-out clone is the PRE-push tree; fresh-box.sh + updated install.sh were copied in (cp) to stand in for the pushed commit — same bytes as the local tree (cmp-verified PARITY_VS_HOST_OK against /repo).",
+    "first e2e attempt failed with 'git and/or curl missing' — that refusal is the designed base-contract fence working; git+curl preinstalled and re-run green."
+  ],
+  "verdict": "PASS"
+}

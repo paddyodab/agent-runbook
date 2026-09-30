@@ -1,0 +1,13 @@
+{
+  "unit": "fresh-box-01",
+  "proof": "04-regression",
+  "date": "2026-09-30",
+  "checks": [
+    {"assert": "28-assertion comms lifecycle gate green on host bash 5.3", "result": "PASS count 28, '28 pass, 0 fail (comms-as-git extended set)'", "pass": true},
+    {"assert": "same gate green under bash:3.2 docker (repo+comms copied writable into container)", "result": "'== RESULTS: 28 pass, 0 fail (comms-as-git extended set) =='", "pass": true},
+    {"assert": "shellcheck zero errors on fresh-box.sh", "result": "LINT_OK (0.11.0, all intentional-literal SC2016 documented inline)", "pass": true},
+    {"assert": "install.sh doctor on the live box still green after integration", "result": "'nothing missing, nothing drifted'", "pass": true},
+    {"assert": "live box PATH-statement check green (content-based grep, incl. legacy unmarker line)", "result": "'ok: PATH statement present in /home/patdabney/.bashrc'", "pass": true}
+  ],
+  "verdict": "PASS"
+}

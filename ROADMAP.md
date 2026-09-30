@@ -121,9 +121,54 @@ no node is special. Session boundaries are the only sync firing points.
   be synced. Trigger recorded here; this unit does not exist on the map
   otherwise. (S3 auth unproven on both nodes; electivity is the design.)
 
+### Unit 5 — fresh-box.sh: the one-command box-day bootstrap
+
+- **Problem:** Friday's EC2 box-day (ssm-user, intro.txt history) burned ~10 anomalous
+  manual steps before `install.sh --machine` could run: `mkdir -p ~/Documents/GitHub`,
+  clone the runbook, `sudo apt install gh`, `mkdir -p ~/.local/bin`, PATH export
+  (+ `~/.bashrc` append), omp installer, herdr installer — every one a
+  remember-it-again cost, for the operator AND for dw's onboarding. machine.md
+  narrates these but nothing executes them.
+- **Outcome:** `fresh-box.sh` in the runbook root (PATH-gated install like
+  scaffold/comms-sync/migrator): the idempotent pre-install step for a bare
+  Ubuntu-class box. In dependency order: git+curl+gh via apt (gh added only when apt
+  lacks it — official keyring recipe, idempotent: existing source.list + keyring skip
+  the re-add); `~/Documents/GitHub` dir; runbook clone (refuses to guess over an
+  existing non-repo checkout, `git pull --ff-only` refresh of an existing one);
+  `~/.local/bin` dir; PATH statement **absent → append the export line to
+  `~/.bashrc` idempotently (marker comment); present → skip** (`--check` reports);
+  omp (per-machine.yml `omp.install_hint`, executed only when the binary is missing);
+  herdr (official installer when missing). Then it PRINTS the follow-on commands it
+  never runs (runbook install + doctor, gh/omp auth — interactive or device-flow);
+  runs nothing interactive.
+- **Proof obligations (`.evidence/fresh-box-01/`, structured JSON):**
+  1. `--check` on a bare box: accurate missing-list; **zero filesystem mutation**
+     (junk HOME, `find -newer` snapshot — the doctor-is-read-only rule applied to a
+     bootstrap); doctor-style bill at the end.
+  2. full run in bash-3.2-safe mode on a scratch HOME: dirs created, PATH line
+     appended exactly once, re-run = no-op (idempotent), `--check` after = green.
+  3. **docker debian:stable-slim e2e** (fresh user, real network): missing gh →
+     apt keyring + source + install lands (`gh --version` OK); runbook clone +
+     `install.sh --machine`-preconditions green; `--check` before/after honest.
+  4. **regression duty:** 28-assertion comms gate, host + bash-3.2 docker, plus
+     shellcheck clean; installer doctor still green on this box.
+- **Contexts touched:** new `fresh-box.sh`, `install.sh` (§3d install block +
+  §2b doctor loop entry + uninstall line + "run again after export" NOTE UX),
+  README (tree + fresh-box line), machine.md (§Shared-context box step 5b).
+- **NOT:** no sudo-less assumption (apt with sudo, non-root fail = named hatch);
+  no apt alternatives when the platform isn't Debian-class (echo + named hatch);
+  no per-tool version pins for gh/omp/herdr (version discipline lives in
+  machine.yml pins/doctor); no remote wiring, no clone of anything but the
+  runbook; no shell-profile editing beyond the missing-PATH line;
+  `machine-add`/VPN/SSM/proxy (transport layer, unit 3's VERIFY items) out of
+  scope; not called from install.sh (dependency order is fresh-box → install).
+- **Depends on:** nothing (machine.yml already carries the omp install_hint).
+
 ## Sequencing & lanes
 
-1 → 2 → (3 ∥ 4) → D(trigger). Unit 1 is the seed unit (hand-done inline;
+1 → 2 → (3 ∥ 4) → D(trigger); unit 5 (fresh-box, 20260930) is independent —
+touch-listed contexts only, lanes may slot beside any of them. Unit 1 is the
+seed unit (hand-done inline;
 gate re-proves the comms priors). Units 2 and 3 touch disjoint files →
 parallelizable lanes; 4 slots after 2's shape settles (doctor needs the
 wrapper's semantics). verify-<app> for this repo = comms-lifecycle-test.sh

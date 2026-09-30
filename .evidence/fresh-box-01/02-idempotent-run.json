@@ -1,0 +1,16 @@
+{
+  "unit": "fresh-box-01",
+  "proof": "02-idempotent-run",
+  "date": "2026-09-30",
+  "interpreter": "bash 5.3 host (omarchy), scratch HOME",
+  "checks": [
+    {"assert": "run1 rc=0 (with --no-omp --no-herdr; installers proven separately)", "result": "rc1=0", "pass": true},
+    {"assert": "run2 rc=0; output diff run1→run2: every 'did:' became 'ok:'; no second mutation", "result": "diff showed did:→ok:/note: transitions only; no repeated mutations", "pass": true},
+    {"assert": "PATH marker+export line appended EXACTLY ONCE", "result": "grep -c 'added by agent-runbook' == 1 across 4 total runs", "pass": true},
+    {"assert": "--check green after full run", "result": "check_rc=0 'nothing missing' (profile-stated + on-PATH arms both correct)", "pass": true},
+    {"assert": "profile-stated-but-not-exported PATH handled: exports for this shell + note, no append", "result": "run2 path arm: 'note: PATH statement already in <profile>; exported for THIS shell'", "pass": true},
+    {"assert": "foreign checkout at $HOME/Documents/GitHub/agent-runbook → refuse, hatch named, directory untouched", "result": "rc=1; refusal names 'refusing to guess … move it aside or diff it'; ls shows original file intact", "pass": true},
+    {"assert": "literal-$HOME profile line recognized (the unmarker legacy case on this laptop's own bashrc)", "result": "live-box check green: 'ok: PATH statement present'", "pass": true}
+  ],
+  "verdict": "PASS"
+}

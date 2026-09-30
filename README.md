@@ -60,6 +60,11 @@ comms-sync         — the comms-as-git plumbing: import (pull --ff-only + hook
                      self-heal; divergence → named rename recipe), export
                      (self-heal → commit-if-needed → push --atomic), remote
                      <url>, status; intentional firing only (unit comms-git-02)
+fresh-box.sh       — the one-command box-day bootstrap: installs gh (bare
+                     Ubuntu lacks it), creates ~/Documents/GitHub + the
+                     runbook clone + ~/.local/bin (PATH line idempotent),
+                     runs the omp/herdr installers when missing, prints the
+                     interactive follow-ons it never runs (unit fresh-box-01)
 sandbox-test.sh   — the proof: docker container + fresh HOME + machine install + pinned omp
 sbx-test.sh       — the same proof in a real Docker Sandbox microVM (sbx create shell)
 .evidence/        — numbered JSON artifacts + PROOF.md per proven unit
@@ -109,6 +114,17 @@ both discovery roots, the AGENTS.md marked block's byte-parity, scaffold + migra
 parity under ~/.local/bin). [machine.md](machine.md) carries
 the full sequence; [sandbox-test.sh](sandbox-test.sh) proves it in a docker container, and [sbx-test.sh](sbx-test.sh) proves it in a real Docker Sandbox microVM
 before you trust it on real hardware.
+
+**On a genuinely bare box** (like the shared-context EC2, whose base Ubuntu image lacks
+even gh), run `fresh-box.sh` FIRST — it covers the mechanical box-day steps so
+`install.sh --machine` isn't blocked: apt-installs gh (official keyring recipe,
+idempotent), creates `~/Documents/GitHub`, clones the runbook there (refresh =
+`pull --ff-only`; refuses to guess over a foreign checkout if one already exists),
+creates `~/.local/bin` and adds the PATH statement to `~/.bashrc` when missing
+(idempotent, marker-commented), and runs the omp/herdr installers only when the
+binaries are absent. `fresh-box.sh --check` prints the same bill with ZERO mutation.
+Interactive steps (gh auth device flow, omp login, the runbook's own install) are
+printed as follow-ons, never run. It is bash-3.2 portable; run it per-user, never as root.
 
 ## Install
 

@@ -249,6 +249,32 @@ if [ "$DOCTOR" != "1" ] && [ -x "$SYNCSRC" ] && [ -d "${HOME}/.local/bin" ]; the
   esac
 fi
 
+# 3c. fresh-box (copy, exec bit — same PATH gate + refuse-fence as migrator/comms-sync)
+FRESHBOX_SRC="$HERE/fresh-box.sh"
+FRESHBOX_DST="${HOME}/.local/bin/fresh-box.sh"
+if [ "$DOCTOR" != "1" ] && [ -x "$FRESHBOX_SRC" ] && [ -d "${HOME}/.local/bin" ]; then
+  case ":$PATH:" in
+    *":${HOME}/.local/bin:"*)
+      if [ -L "$FRESHBOX_DST" ]; then
+        rm "$FRESHBOX_DST"
+      elif [ -e "$FRESHBOX_DST" ]; then
+        if ! cmp -s "$FRESHBOX_DST" "$FRESHBOX_SRC"; then
+          echo "REFUSED: $FRESHBOX_DST exists and differs from this repo's copy." >&2
+          echo "  Reconcile, then re-run. Refusing to overwrite." >&2
+          exit 1
+        fi
+      fi
+      tmp_fb="$(mktemp)"
+      cat "$FRESHBOX_SRC" > "$tmp_fb"
+      chmod 755 "$tmp_fb"
+      mv "$tmp_fb" "$FRESHBOX_DST"
+
+      installed="$installed
+  $FRESHBOX_DST (fresh-box installed)"
+      ;;
+  esac
+fi
+
 if [ "$DOCTOR" != "1" ] && [ -x "$SCAFFOLD_SRC" ] && [ -d "${HOME}/.local/bin" ]; then
   case ":$PATH:" in
     *":${HOME}/.local/bin:"*)
@@ -272,7 +298,9 @@ if [ "$DOCTOR" != "1" ] && [ -x "$SCAFFOLD_SRC" ] && [ -d "${HOME}/.local/bin" ]
   $SCAFFOLD_DST (scaffold installed)"
       ;;
     *)
-      echo "NOTE: ~/.local/bin exists but is not on PATH; scaffold not installed."
+      echo "NOTE: ~/.local/bin exists but is not on PATH; tools not installed."
+      echo "  Export it (e.g. add 'export PATH=\"\$HOME/.local/bin:\$PATH\"' to ~/.bashrc),"
+      echo "  then RE-RUN ./install.sh — the install was skipped, not partial."
       ;;
   esac
 fi
@@ -404,7 +432,7 @@ if [ "$DOCTOR" = "1" ]; then
   # scaffold + migrator installed-copy parity (PATH-gated installs)
   case ":$PATH:" in
     *":${HOME}/.local/bin:"*)
-      for dexec in comms-sync migrate-user-comms.sh new-enclosing-folder.sh; do
+      for dexec in comms-sync migrate-user-comms.sh new-enclosing-folder.sh fresh-box.sh; do
         ddst="${HOME}/.local/bin/$dexec"
         dsrc="$HERE/$dexec"
         [ "$dexec" = "new-enclosing-folder.sh" ] && dsrc="$HERE/scaffold/$dexec"
@@ -441,6 +469,6 @@ WARNINGS:
 $warn
 }
 Uninstall: remove the marked block from $OMP_AGENTS, the skill symlinks under
-$OMP_SKILLS and $AGENTS_SKILLS, $SCAFFOLD_DST, $SYNCDST, $MIGRATE_DST if installed,
+$OMP_SKILLS and $AGENTS_SKILLS, $SCAFFOLD_DST, $SYNCDST, $MIGRATE_DST, $FRESHBOX_DST if installed,
 and any adapter clone under ~/.omp/adapters/.
 EOF

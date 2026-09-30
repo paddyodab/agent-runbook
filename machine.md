@@ -242,9 +242,20 @@ survives two real users.
 6. **Per-user omp + agent-runbook** (as each user):
    ```bash
    sudo -iu pd
+   ```
+   **Box-day bootstrap (per user, before the install):** `fresh-box.sh` — installed
+   on PATH by install.sh (or run from a plain clone with curl present: git clone +
+   `bash fresh-box.sh`). It idempotently covers the mechanical EC2 day-one steps:
+   gh via the official apt recipe (bare image lacks it), `~/Documents/GitHub`,
+   the runbook clone, `~/.local/bin` + the PATH statement in `~/.bashrc`, plus
+   the omp/herdr installers when the binaries are missing. `fresh-box.sh --check`
+   prints the bill with zero mutation. Then continue:
+   ```bash
    git clone <agent-runbook-repo-url> ~/agent-runbook && cd ~/agent-runbook
    ./install.sh --machine && ./install.sh --doctor --machine
    ```
+   (fresh-box.sh already cloned the runbook to `~/Documents/GitHub/agent-runbook`
+   — either location works; the install runs from wherever the repo sits.)
    Each user gets their own `~/.omp` (omp credentials in agent.db are per-user).
 
    **Model auth — GitHub Copilot (per-user, device flow):** as each user, on the box:

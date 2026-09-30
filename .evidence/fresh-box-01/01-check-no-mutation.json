@@ -1,0 +1,14 @@
+{
+  "unit": "fresh-box-01",
+  "proof": "01-check-no-mutation",
+  "date": "2026-09-30",
+  "interpreter": "bash 5.3 host (omarchy)",
+  "fixture": "mktemp scratch HOME + stripped PATH; fresh-box.sh --check",
+  "checks": [
+    {"assert": "check exits 1 on a bare HOME (honest bill)", "result": "rc=1", "pass": true},
+    {"assert": "zero files created during the run (find -newer sentinel count == 0)", "result": "files_created_during_check=0", "pass": true},
+    {"assert": "bill lists exact missing set: workspace, bin dir, runbook, PATH-on-PATH, PATH statement", "result": "5 NEEDS WORK lines + gaps block", "pass": true},
+    {"assert": "clean-env run (env -i HOME=<scratch>) reports omp/herdr honestly as missing", "result": "NEEDS WORK: omp missing / ok: herdr present", "pass": true}
+  ],
+  "verdict": "PASS"
+}
