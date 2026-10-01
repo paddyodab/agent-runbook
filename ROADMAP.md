@@ -150,7 +150,7 @@ no node is special. Session boundaries are the only sync firing points.
   3. **docker debian:stable-slim e2e** (fresh user, real network): missing gh →
      apt keyring + source + install lands (`gh --version` OK); runbook clone +
      `install.sh --machine`-preconditions green; `--check` before/after honest.
-  4. **regression duty:** 28-assertion comms gate, host + bash-3.2 docker, plus
+  4. **regression duty:** 32-assertion comms gate, host + bash-3.2 docker, plus
      shellcheck clean; installer doctor still green on this box.
 - **Contexts touched:** new `fresh-box.sh`, `install.sh` (§3d install block +
   §2b doctor loop entry + uninstall line + "run again after export" NOTE UX),

@@ -1,0 +1,7 @@
+---
+PRE-FIX repro transcript (same fixture shape, buggy script, 2026-10-01):
+---
+=== Session intro — patdabney/20261001-01 ===
+No prior handoff — this is the first session in this enclosing folder. This session's handoff becomes the first.
+---
+Fixture: comms/patdabney/20260929-01/session-handoff.md = sealed 20260930-01 handoff (real canonical state). Script printed the false "first session" intro and created a new folder.

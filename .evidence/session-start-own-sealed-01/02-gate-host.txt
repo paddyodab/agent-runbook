@@ -1,0 +1,48 @@
+== 1. u1 fresh start
+  PASS: u1 fresh start creates comms/u1/<today>-01
+  PASS: intro names u1's session folder
+== 2. u2 fresh start while u1 unsealed (per-user guard)
+  PASS: u2 fresh start succeeds while u1 unsealed
+== 3. u1 fresh again (own unsealed guard)
+  PASS: u1 own-unsealed guard fires
+== 4. u1 --resume reopens own folder
+  PASS: u1 --resume reopens own session
+== 5. u1 seal incomplete → refused with section names
+  PASS: incomplete seal refused
+== 6. fill u1 handoff + seal
+  PASS: u1 sealed (marker gone)
+  PASS: ledger digest appended
+== 7. u2 fresh start resumes from u1's sealed handoff
+  PASS: cross-user resume from u1 sealed handoff
+== 8. cross-user seal: u1 seals u2's draft
+  PASS: u2 draft sealed by u1 (explicit prefixed arg)
+== 9. bad names refused
+  PASS: templates refused
+  PASS: multi-slash name refused
+  PASS: --resume refused in session-end
+== 10. bare seal, caller has no session → refuse naming salvage
+  PASS: bare seal refuses for empty user
+== 11. cross-user CHRONOLOGY: newest date-seq wins regardless of user name
+  PASS: zz/20260930-01 sealed (old handoff)
+  PASS: u2/20261001-01 sealed (newest handoff)
+  PASS: own-newest (or documented tie) wins over older other-user handoff
+  PASS: newest date-seq wins across users (not path order)
+== 12. own-user sealed history participates (fresh start is not a false bootstrap)
+  PASS: vz/20261001-01 sealed (own-user fixture)
+  PASS: own newest sealed wins on fresh start (no false first-session)
+  PASS: own unsealed draft skipped; newest sealed resumed
+  PASS: draft skipped with a loud warning
+
+== 11. comms-as-git (unit 1): repo valid + credential hook fires (8 assertions)
+  PASS: comms/ is a valid git repo
+  PASS: comms repo has history (initial commit)
+  PASS: tracked hook copy present (comms/hooks/pre-push)
+  PASS: active hook stamped (.git/hooks/pre-push executable)
+  PASS: hook copies identical (tree vs active)
+  PASS: hook refuses credential-shaped commit (exit 1)
+  PASS: refusal explains itself
+  PASS: refusal names the offending line
+  PASS: refusal names the deliberate escape
+  PASS: positive control: clean range passes the hook
+
+== RESULTS: 32 pass, 0 fail (comms-as-git extended set) ==

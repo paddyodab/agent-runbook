@@ -482,8 +482,13 @@ OWN_REL="$USER_NAME/"
 ALL_BUT_OWN=()
 for line in ${handoffs[@]+"${handoffs[@]}"}; do
   rel="$(REL_FROM_ENTRY "$line")"
-  [[ "$rel" == "$SESS_DIR/session-handoff.md" || "$COMMS/$rel" == "$SESS_DIR/session-handoff.md" ]] && continue
-  [[ "$rel" == "$USER_NAME/"* ]] && continue   # our own folder's drafts never count
+  # skip THIS session's own freshly-created handoff (relative <user>/<date-seq>)
+  [[ "$rel" == "$SESS" ]] && continue
+  # NOTE: the caller's own user folder is NOT skipped here — own SEALED handoffs
+  # are canonical-state candidates (newest sealed anywhere wins, across users).
+  # Only the current session's own draft is excluded (the line above). The old
+  # "$USER_NAME/"* skip threw away every own sealed handoff, making every fresh
+  # start on a single-user box falsely bootstrap as "first session".
   ALL_BUT_OWN+=("$rel")
 done
 if (( ${#ALL_BUT_OWN[@]} )); then

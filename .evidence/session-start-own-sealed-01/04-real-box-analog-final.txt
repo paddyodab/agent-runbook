@@ -1,0 +1,12 @@
+
+=== Session intro — patdabney/20261001-01 ===
+Resuming from sealed handoff: comms/patdabney/20260929-01/session-handoff.md
+This session's folder: comms/patdabney/20261001-01/   (drop files here; conversation.md is append-only)
+
+READ, in order (the only comms context at session start):
+  1. comms/README.md                      — the convention (rarely changes)
+  2. comms/patdabney/20260929-01/session-handoff.md   — canonical state + its "How to resume" manifest
+
+That's it. No other comms files, no prior-art, unless the handoff or the operator names them.
+
+When the session ends, run: ./comms/session-end.sh

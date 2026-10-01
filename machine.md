@@ -315,7 +315,7 @@ fresh start → intro names `comms/<user>/<today>-01`; the OTHER user can still
 fresh-start while yours is open; bare seal with no session of your own refuses naming
 the prefixed salvage command.
 
-Acceptance on the host: `./comms-lifecycle-test.sh /srv/<slug>` — 28 assertions in a
+Acceptance on the host: `./comms-lifecycle-test.sh /srv/<slug>` — 32 assertions in a
 disposable /tmp fixture staged from the folder's comms/ scaffold (the run never
 mutates the named folder — live ones are safe to point at), incl. the cross-user
 CHRONOLOGY scenario: a late-alphabet user's older handoff must lose to an
@@ -325,7 +325,7 @@ seeding from an existing folder instead of fresh scaffolding, run
 `./migrate-user-comms.sh /srv/<slug>` first.
 
 Protocol proofs: `./comms-lifecycle-test.sh <enclosing-folder>` (two fake users,
-28 assertions, disposable /tmp fixture; green on bash 5.3 host and stock bash 3.2
+32 assertions, disposable /tmp fixture; green on bash 5.3 host and stock bash 3.2
 in docker), evidence in `.evidence/shared-comms-01/` and `.evidence/comms-git-0N/`.
 
 Not covered here (deliberate): **S3 as the live filesystem** — the comms protocol is

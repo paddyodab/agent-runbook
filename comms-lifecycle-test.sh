@@ -215,6 +215,48 @@ run 0 anew session-start.sh
 echo "$OUT" | grep -q "Resuming from sealed handoff: comms/u2/$TODAY-01/session-handoff.md" \
   && ok "newest date-seq wins across users (not path order)" || fail "chronology" "wrong: $OUT"
 
+echo "== 12. own-user sealed history participates (fresh start is not a false bootstrap)"
+# Regression for the single-user box: the caller's own SEALED handoffs are canonical
+# candidates (comms/README.md: newest sealed handoff ANYWHERE wins, across users).
+# 12a — own newest sealed is the newest anywhere: 'vz' sorts after u2, so vz/TODAY-01
+# sealed beats u1/u2 TODAY-01; vz's fresh start must resume from vz's OWN handoff.
+mkdir -p "$(sess_dir vz/"$TODAY"-01)"
+fill_handoff "$(sess_dir vz/"$TODAY"-01)/session-handoff.md" vz
+run 0 u2 session-end.sh "vz/$TODAY-01" 2>/dev/null || true
+grep -qF 'SEAL' "$(sess_dir vz/"$TODAY"-01/session-handoff.md)" && fail "vz seal" "SEAL still present"
+ok "vz/$TODAY-01 sealed (own-user fixture)"
+if run 0 vz session-start.sh; then
+  if echo "$OUT" | grep -q "Resuming from sealed handoff: comms/vz/$TODAY-01/session-handoff.md"; then
+    ok "own newest sealed wins on fresh start (no false first-session)"
+  else
+    fail "own newest sealed" "own sealed handoff ignored: $OUT"
+  fi
+else
+  fail "own newest sealed" "session-start exited nonzero: $ERR"
+fi
+# 12b — own newest entry is an UNSEALED draft: strip the fixture to wdr only; wdr's
+# newest = yesterday's template draft (SEAL marker present), sealed = 2 days ago.
+# Fresh start must warn about the draft AND resume the newest sealed (its own).
+rm -rf "$(sess_dir u1)" "$(sess_dir u2)" "$(sess_dir zz)" "$(sess_dir mw)" "$(sess_dir vz)"
+mkdir -p "$(sess_dir wdr/"$MW_YESTERDAY"-01)" "$(sess_dir wdr/"$YESTERDAY"-01)"
+fill_handoff "$(sess_dir wdr/"$MW_YESTERDAY"-01)/session-handoff.md" wdr
+run 0 u2 session-end.sh "wdr/$MW_YESTERDAY-01" 2>/dev/null || true
+cp "$SCRIPTS/templates/session-handoff.md" "$(sess_dir wdr/"$YESTERDAY"-01)/session-handoff.md"
+if run 0 wdr session-start.sh; then
+  if echo "$OUT" | grep -q "Resuming from sealed handoff: comms/wdr/$MW_YESTERDAY-01/session-handoff.md"; then
+    ok "own unsealed draft skipped; newest sealed resumed"
+  else
+    fail "own draft fallback" "draft ignored or wrong target: $OUT"
+  fi
+else
+  fail "own draft fallback" "session-start exited nonzero: $ERR"
+fi
+if echo "$ERR" | grep -q "unsealed draft"; then
+  ok "draft skipped with a loud warning"
+else
+  fail "draft warning" "silent fallback: $ERR"
+fi
+
 echo
 echo "== 11. comms-as-git (unit 1): repo valid + credential hook fires (8 assertions)"
 # The fixture comms/ was staged byte-wise from the SOURCE scaffold's comms/ — a
