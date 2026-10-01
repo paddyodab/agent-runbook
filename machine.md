@@ -233,12 +233,14 @@ survives two real users.
    sudo chown -R root:shared /srv/<slug>
    sudo chmod -R g+rX /srv/<slug>
    sudo find /srv/<slug> -type d -exec chmod g+s {} +
-   sudo chmod -R g+w /srv/<slug>/comms /srv/<slug>/work
+   sudo chmod -R g+w /srv/<slug>/comms /srv/<slug>/work /srv/<slug>/artifacts
    ```
-   Result: comms/ and work/ are group-writable (the protocol needs it); artifacts/
-   and prior-art/ settle read-only for the group (reference, never a work target);
-   fresh top-level entries require sudo — by design (a new top-level dir is a
-   deliberate layout change, not an accident).
+   Result: comms/, work/, and artifacts/ are group-writable (the comms protocol needs
+   the first two; artifacts/ needs it since the objects tier — either user drops a
+   survey/deck mid-session and `artifacts-sync` lifts it; proven in
+   `.evidence/artifacts-sync-01/`); prior-art/ stays read-only for the group
+   (reference, never a work target); fresh top-level entries require sudo — by design
+   (a new top-level dir is a deliberate layout change, not an accident).
 6. **Per-user omp + agent-runbook** (as each user):
    ```bash
    sudo -iu pd
@@ -292,6 +294,49 @@ survives two real users.
    asks; setup asks before stopping an incompatible remote server (default No); a
    connection failure does not prove a mutation was not applied — inspect remote state
    before retrying.
+
+9. **artifacts/ object tier (`artifacts-sync`)** — the shared-context loop closes when
+   artifacts travel with everything else (comms rides git; work repos carry their own
+   remotes). The tool: `artifacts-sync export|import|remote|status` — mirrors
+   `artifacts/` against a wired target (`s3://<bucket>/<prefix>/` or a plain local
+   path); mirror fences refuse one-sided deletions, naming an exact `--force` recipe;
+   intentional firing only (session boundaries). Install: runbook `install.sh`.
+   Verify: `artifacts-sync status` honest on wired/unwired; the full proof bundle is
+   `.evidence/artifacts-sync-01/` (local roundtrip, fences, moto S3-API flow, bash 3.2).
+
+   **Bucket (create when the S3 leg is chosen — one per enclosing folder):**
+   ```bash
+   aws s3api create-bucket --bucket <slug>-artifacts --region us-east-1
+   aws s3api put-public-access-block --bucket <slug>-artifacts \
+     --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+   aws s3api put-bucket-encryption --bucket <slug>-artifacts \
+     --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
+   ```
+   (us-east-1 needs no LocationConstraint; other regions add `--create-bucket-configuration LocationConstraint=<region>`. Private + SSE-S3 by default; versioning/lifecycle deliberately NOT wired — unit NOT-list.)
+
+   **Wire + first lift (from the folder that owns the canonical artifacts/):**
+   ```bash
+   cd /srv/<slug>            # or the laptop's enclosing folder
+   artifacts-sync remote s3://<slug>-artifacts/<slug>/ artifacts
+   artifacts-sync export artifacts
+   ```
+   Any other node: `artifacts-sync import artifacts` (target is canonical first time
+   down). `artifacts-sync status artifacts` prints counts + both missing-lists.
+
+   **Auth shapes (decide at deploy; wrapper is auth-agnostic — it never touches
+   credentials; all shapes VERIFY-AT-DEPLOY until run against the live bucket):**
+   - **EC2 instance profile** (preferred on the box): an instance profile with
+     `s3:ListBucket/PutObject/GetObject/DeleteObject` on `<slug>-artifacts/*` +
+     `ListBucket` on the bucket — zero stored credentials on the box; the aws CLI picks
+     it up automatically. Attach at step 1 (devops-owned change).
+   - **Named profiles on laptops** (per user, never pooled): `aws configure --profile
+     <slug>` (keys or SSO), then export `AWS_PROFILE=<slug>` per session, or
+     `ARTIFACTS_SYNC_TARGET` stays in the wire file while env carries identity. Keys
+     are long-lived secrets — prefer SSO (`aws sso login --profile <slug>`) when
+     Identity Center exists.
+   - **No S3 at all** (the bootstrap mode, proven): wire a plain local path or run the
+     two-node loop over rsync'd dirs — local-path mode needs only coreutils; this is
+     how the EC2⇄laptop loop runs before any bucket exists.
 
 Migrating EXISTING enclosing folders (work laptop, old folders): run the migration
 script once per folder —

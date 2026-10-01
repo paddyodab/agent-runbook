@@ -24,6 +24,9 @@ machine:
     - name: herdr                   # mind-pane drill-in (optional, warn only)
       check: herdr --help
       optional: true
+    - name: aws                     # artifacts-sync s3 mode (optional; local-path mode works without)
+      check: aws --version
+      optional: true
 
 # Skills symlinked from this repo. Each: { name, source } — source is a path in this
 # repo (installed from HERE) or a git URL + ref (installed by cloning into ~/.cache).

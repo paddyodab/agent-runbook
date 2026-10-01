@@ -1,0 +1,20 @@
+PASS: 05 interpreter: stock bash 3.2 in docker
+PASS: 05 bash -n: parses under 3.2 (mapfile/assoc/;& would fail here)
+md5sum: can't open './sub': No such file or directory
+md5sum: can't open 'dir/leaf': No such file or directory
+md5sum: can't open 'two.txt': No such file or directory
+md5sum: can't open './top': No such file or directory
+md5sum: can't open 'file.txt': No such file or directory
+md5sum: can't open './sub': No such file or directory
+md5sum: can't open 'dir/leaf': No such file or directory
+md5sum: can't open 'two.txt': No such file or directory
+md5sum: can't open './top': No such file or directory
+md5sum: can't open 'file.txt': No such file or directory
+PASS: 05 flow: wire/export/import/converge under bash 3.2 (spaces + subdirs, hash-equal)
+PASS: 05 fence: fires under 3.2, rc=1
+PASS: 05 recipe: victim named quote-safe under 3.2 (reads the container's own fence.out)
+PASS: 05 force: victims-only run under 3.2
+PASS: 05 post-force: export clean under 3.2
+PASS: 05 status: parity CLEAN under 3.2
+PASS: 05 hatches: unwired/scheme/electivity refusals intact under 3.2
+=== obligation 05: 9 pass, 0 fail

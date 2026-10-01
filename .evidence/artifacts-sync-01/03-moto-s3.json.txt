@@ -1,0 +1,22 @@
+moto up (1s)
+PASS: 03 moto: bucket created (real S3 API)
+PASS: 03 wire: s3://bkt/prefix/ verified via real ListObjects
+PASS: 03 wire: exact URI stored verbatim (trailing slash, no endpoint pollution)
+PASS: 03 export: leaf files to the s3 prefix
+PASS: 03 s3-list: wrapper parses keys with spaces correctly
+PASS: 03 import: one-shot s3 -> nodeB
+PASS: 03 converge: nodeA == nodeB over the S3 round trip
+PASS: 03 fence: s3-side deletion refuses the import
+PASS: 03 fence: s3-deleted victim named (quote-safe)
+PASS: 03 fence: dir-side new file in the SAME refusal (both-side accounting)
+PASS: 03 fence: recipe carries --target (paste-clean from a one-shot node)
+PASS: 03 force: scoped export to s3
+PASS: 03 force: new file really on s3
+PASS: 03 survivor: spaces file untouched by the scoped force
+PASS: 03 force: s3-canonical delete mirrored down locally
+PASS: 03 prefix boundary: peer-prefix object untouched by the wired prefix's sync
+PASS: 03 bare bucket: refused (aws present, so ambiguity is the firing fence)
+PASS: 03 bare bucket: refusal names the trailing-slash re-wire
+PASS: 03 pre-env: nodeB reconciled via its own recipe
+PASS: 03 env: ARTIFACTS_SYNC_TARGET drives s3 mode
+=== obligation 03: 20 pass, 0 fail

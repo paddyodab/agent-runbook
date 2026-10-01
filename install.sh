@@ -275,6 +275,32 @@ if [ "$DOCTOR" != "1" ] && [ -x "$FRESHBOX_SRC" ] && [ -d "${HOME}/.local/bin" ]
   esac
 fi
 
+# 3d. artifacts-sync (copy, exec bit — same PATH gate + refuse-fence as the above)
+ARTSRC="$HERE/artifacts-sync"
+ARTDST="${HOME}/.local/bin/artifacts-sync"
+if [ "$DOCTOR" != "1" ] && [ -x "$ARTSRC" ] && [ -d "${HOME}/.local/bin" ]; then
+  case ":$PATH:" in
+    *":${HOME}/.local/bin:"*)
+      if [ -L "$ARTDST" ]; then
+        rm "$ARTDST"
+      elif [ -e "$ARTDST" ]; then
+        if ! cmp -s "$ARTDST" "$ARTSRC"; then
+          echo "REFUSED: $ARTDST exists and differs from this repo's copy." >&2
+          echo "  Reconcile, then re-run. Refusing to overwrite." >&2
+          exit 1
+        fi
+      fi
+      tmp_art="$(mktemp)"
+      cat "$ARTSRC" > "$tmp_art"
+      chmod 755 "$tmp_art"
+      mv "$tmp_art" "$ARTDST"
+
+      installed="$installed
+  $ARTDST (artifacts-sync installed)"
+      ;;
+  esac
+fi
+
 if [ "$DOCTOR" != "1" ] && [ -x "$SCAFFOLD_SRC" ] && [ -d "${HOME}/.local/bin" ]; then
   case ":$PATH:" in
     *":${HOME}/.local/bin:"*)
@@ -432,7 +458,7 @@ if [ "$DOCTOR" = "1" ]; then
   # scaffold + migrator installed-copy parity (PATH-gated installs)
   case ":$PATH:" in
     *":${HOME}/.local/bin:"*)
-      for dexec in comms-sync migrate-user-comms.sh new-enclosing-folder.sh fresh-box.sh; do
+      for dexec in comms-sync migrate-user-comms.sh new-enclosing-folder.sh fresh-box.sh artifacts-sync; do
         ddst="${HOME}/.local/bin/$dexec"
         dsrc="$HERE/$dexec"
         [ "$dexec" = "new-enclosing-folder.sh" ] && dsrc="$HERE/scaffold/$dexec"
@@ -469,6 +495,6 @@ WARNINGS:
 $warn
 }
 Uninstall: remove the marked block from $OMP_AGENTS, the skill symlinks under
-$OMP_SKILLS and $AGENTS_SKILLS, $SCAFFOLD_DST, $SYNCDST, $MIGRATE_DST, $FRESHBOX_DST if installed,
+$OMP_SKILLS and $AGENTS_SKILLS, $SCAFFOLD_DST, $SYNCDST, $FRESHBOX_DST, $ARTDST if installed,
 and any adapter clone under ~/.omp/adapters/.
 EOF

@@ -1,0 +1,530 @@
+#!/usr/bin/env bash
+# artifacts-sync — the objects tier: mirror an artifacts-style folder ↔ its
+# wired target (s3://bucket/prefix/ via aws s3, or a plain local path).
+#
+#   artifacts-sync export [<dir>]         mirror the folder UP to the target
+#   artifacts-sync import [<dir>]         mirror the target DOWN into the folder
+#   artifacts-sync remote <uri> [<dir>]   wire the target (verifies reachability;
+#                                         --force skips verify / re-wires, LOUD)
+#   artifacts-sync status [<dir>]         wired target, reachability, counts, diff
+#
+# One-shot target: --target <uri>; otherwise <dir>/.sync-target (written ONLY by
+# `remote`), else ARTIFACTS_SYNC_TARGET env.
+#
+# Mirror fences: a LEAF FILE existing on only one side (a deletion the mirror
+# would perform) REFUSES with the exact --force recipe:
+#   artifacts-sync --force <name…> <export|import> [<dir>]
+# The forced run reconciles EXACTLY those victims — nothing else moves — then
+# tells you to re-run the mirror. Same-name-different-content is NOT divergence
+# (the mirror overwrites it); only one-sided names fence; empty dirs don't travel.
+#
+# Intentional firing only — no daemon/cron/watch ever runs this. Refusals name
+# their hatch. Electivity: comms/, prior-art/, work/ are refused (other tiers
+# own their transport; prior-art never syncs). Portable: stock bash 3.2.
+set -u
+
+die() { echo "artifacts-sync: $*" >&2; exit 1; }
+
+usage() { sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//;s/^#//'; exit 1; }
+
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+
+CMD=""
+ARG1=""
+ARG2=""
+FLAG_TARGET=""
+FORCE_NAMES_FILE="$TMP/force.names"
+VISITED_FORCE=0
+
+# --- arg pass -----------------------------------------------------------------------
+while [ $# -gt 0 ]; do
+  case "$1" in
+    export|import|remote|status)
+      if [ -n "$CMD" ]; then die "one command per run (got '$CMD' and '$1')"; fi
+      CMD="$1"; shift ;;
+    --target)
+      [ $# -ge 2 ] || die "--target needs a value"
+      FLAG_TARGET="$2"; shift 2 ;;
+    --force)
+      VISITED_FORCE=1
+      shift
+      case "$CMD" in
+        remote) : ;;   # remote's --force = verify-skip/re-wire; takes no names
+        *)
+          while [ $# -gt 0 ]; do
+            case "$1" in
+              export|import|remote|status) break ;;
+              --target)
+                [ $# -ge 2 ] || die "--target needs a value"
+                FLAG_TARGET="$2"; shift 2 ;;
+              --*) die "--force names must come right after --force (got '$1')" ;;
+              *) printf '%s\n' "$1" >> "$FORCE_NAMES_FILE"; shift ;;
+            esac
+          done
+          ;;
+      esac
+      ;;
+    -h|--help|help) usage ;;
+    --*) die "unknown flag: $1" ;;
+    *)
+      if [ -n "$ARG2" ]; then die "unexpected extra argument: $1"; fi
+      if [ -n "$ARG1" ]; then ARG2="$1"; else ARG1="$1"; fi
+      shift ;;
+  esac
+done
+[ -n "$CMD" ] || usage
+
+# positionals: export/import/status -> [<dir>]; remote -> <uri> [<dir>]
+case "$CMD" in
+  remote)
+    DIRARG="$ARG2"
+    REMOTE_URI="$ARG1"
+    [ -n "$REMOTE_URI" ] || die "usage: artifacts-sync remote <uri> [<dir>]" ;;
+  *) DIRARG="$ARG1" ;;
+esac
+
+# --- resolve the working dir ---------------------------------------------------------
+resolve_dir() {
+  if [ -n "$DIRARG" ]; then WDIR="$DIRARG";
+  elif [ "$(basename "$PWD")" = "artifacts" ]; then WDIR="$PWD";
+  else WDIR="$PWD/artifacts"; fi
+  while [ "${WDIR%/}" != "$WDIR" ]; do WDIR="${WDIR%/}"; done
+  case "$WDIR" in /*) : ;; *) WDIR="$PWD/$WDIR" ;; esac
+  case "$WDIR" in
+    */comms)
+      die "$WDIR is the comms tier's living space — its transport is comms-sync (git), not this tool" ;;
+    */prior-art)
+      die "$WDIR never syncs — prior-art is read-only reference (re-clone instead)" ;;
+    */work)
+      die "$WDIR is a git work tree — repos carry their own remotes; artifacts-sync moves artifacts/ only" ;;
+  esac
+}
+
+# --- target resolution -----------------------------------------------------------------
+resolve_target() {
+  if [ -n "$FLAG_TARGET" ]; then
+    TARGET="$FLAG_TARGET"; T_SRC="--target flag (one-shot)"
+  elif [ -f "$WDIR/.sync-target" ]; then
+    TARGET="$(cat "$WDIR/.sync-target")"; T_SRC="$WDIR/.sync-target"
+    [ -n "$TARGET" ] || { echo "artifacts-sync: wire file exists but is empty — treating as unwired" >&2; return 1; }
+  elif [ -n "${ARTIFACTS_SYNC_TARGET:-}" ]; then
+    TARGET="$ARTIFACTS_SYNC_TARGET"; T_SRC="env ARTIFACTS_SYNC_TARGET"
+  else
+    return 1
+  fi
+  return 0
+}
+
+validate_target() {
+  case "$TARGET" in
+    s3://*)
+      case "$TARGET" in
+        s3://*/*) : ;;   # s3://bucket/... — bucket/prefix boundary present (past the //)
+        *) die "bare bucket '$TARGET' is ambiguous (bucket root vs a prefix) — wire the trailing-slash form: artifacts-sync remote $TARGET/ <dir>   ('$TARGET/' means bucket root)" ;;
+      esac
+      ;;
+    *"://"*)
+      die "unsupported scheme in '$TARGET' — use s3://<bucket>/<prefix>/ or a filesystem path"
+      ;;
+  esac
+  return 0
+}
+
+s3_target() { case "$TARGET" in s3://*) return 0 ;; *) return 1 ;; esac; }
+
+s3_prefix() {  # wired uri -> key prefix ("" = bucket root); wired form carries ≥1 slash
+  local rest
+  rest="${TARGET#s3://}"
+  rest="${rest#*/}"            # drop the bucket (validation guarantees a slash existed)
+  [ "$rest" = "/" ] && rest=""
+  echo "$rest"
+}
+
+s3_key() {  # $1 = rel leaf name -> full s3 URI of the object key
+  local base
+  base="${TARGET%/}"           # strip the enforced trailing slash
+  echo "$base/$(s3_prefix)$1"
+}
+
+need_aws() { command -v aws >/dev/null 2>&1; }
+
+# --- listings (LEAF FILES only, relative paths, sorted) ----------------------------------
+list_dir_leaves() {  # $1 = dir -> leaf file paths (relative), sorted
+  ( cd "$1" && find . -type f ! -name ".sync-target" ) | sed 's|^\./||' | LC_ALL=C sort
+}
+
+s3_ls() {  # $1 = s3 URI; stdout = listing (possibly empty); rc 0 = reachable (incl. EMPTY result — aws CLI v1 returns 1 when a listing is empty), rc 1 = truly unreachable (curl/auth error text on stderr)
+  aws s3 ls "$1" --recursive 2>"$TMP/s3ls.err" > "$TMP/s3ls.raw"
+  local rc=$?
+  if [ $rc -ne 0 ]; then
+    # empty listing (rc=1, no error text) = reachable-but-empty (aws CLI v1 semantic)
+    if [ ! -s "$TMP/s3ls.err" ] && [ ! -s "$TMP/s3ls.raw" ]; then
+      return 0
+    fi
+    cat "$TMP/s3ls.err" >&2
+    return 1
+  fi
+  return 0
+}
+
+list_s3_leaves() {  # -> leaf keys (minus prefix), sorted into $TMP/names.tgt; rc 1 unreachable
+  local prefix line
+  prefix="$(s3_prefix)"
+  s3_ls "$TARGET" || return 1
+  : > "$TMP/names.tgt"
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    case "$line" in *" PRE "*) continue ;; esac   # "directory" markers (non-recursive only)
+    # "2026-10-01 12:00:00  <size> <key>" — strip through the size field
+    line="$(printf '%s\n' "$line" | sed -E 's/^[0-9-]+ [0-9:]+ +[0-9]+ +//')"
+    line="${line#"$prefix"}"
+    [ -n "$line" ] || continue
+    printf '%s\n' "$line" >> "$TMP/names.tgt"
+  done < "$TMP/s3ls.raw"
+  LC_ALL=C sort -o "$TMP/names.tgt" "$TMP/names.tgt"
+}
+
+load_names() {
+  list_dir_leaves "$WDIR" > "$TMP/names.dir" || die "cannot list $WDIR"
+  if s3_target; then
+    if ! list_s3_leaves; then
+      die "s3 target not reachable: $TARGET — fix auth/endpoint, or re-wire deliberately: artifacts-sync remote --force $TARGET $WDIR"
+    fi
+  else
+    if [ -d "$TARGET" ]; then
+      list_dir_leaves "$TARGET" > "$TMP/names.tgt"
+    else
+      : > "$TMP/names.tgt"     # absent local dir = empty target, not a failure
+    fi
+  fi
+}
+
+# --- divergence set (+name = dir-only, -name = target-only) --------------------------------
+diff_sides() {  # comm -3: col1 = only in names.dir, col2 = only in names.tgt
+  comm -3 "$TMP/names.dir" "$TMP/names.tgt" | awk '
+    /^\t/ { print "-" substr($0, 2); next }
+    NF || $0 != "" { print "+" $0 }
+  ' | sed '/^+$/d'
+}
+
+victims_export() { diff_sides | grep '^-' | sed 's/^-//' > "$TMP/victims"; }
+victims_import() { diff_sides | grep '^+' | sed 's/^+//' > "$TMP/victims"; }
+
+line_count() { grep -c . "$1" 2>/dev/null || true; }
+
+q_one() {  # shell-quote a name for paste-safe recipes
+  case "$1" in
+    *[!A-Za-z0-9_./+:@-]*)
+      printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")" ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+
+print_recipe() {  # $1 = direction; names from $TMP/victims
+  printf '  artifacts-sync --force '
+  while IFS= read -r n; do
+    [ -n "$n" ] || continue
+    printf '%s ' "$(q_one "$n")"
+  done < "$TMP/victims"
+  if [ "$T_SRC" = "--target flag (one-shot)" ]; then
+    printf -- '--target %s ' "$(q_one "$TARGET")"
+  fi
+  printf '%s %s\n' "$1" "$WDIR"
+}
+
+refuse_divergence() {  # $1 = direction
+  local d="$1" n
+  # keep the resolved target visible to print_recipe (its source may be one-shot)
+  echo "mirror fence: $(line_count "$TMP/victims") leaf file(s) exist on only ONE side; the mirror would delete them:" >&2
+  while IFS= read -r n; do
+    [ -n "$n" ] || continue
+    if [ "$d" = "export" ]; then
+      echo "  - $n   (in target, missing in $WDIR)" >&2
+    else
+      echo "  - $n   (in $WDIR, missing in target)" >&2
+    fi
+  done < "$TMP/victims"
+  if [ "$d" = "export" ]; then
+    echo "reconcile (mirror up, deleting these from the target):" >&2
+    print_recipe export
+  else
+    echo "reconcile — choose deliberately:" >&2
+    echo "  target is canonical, delete the local one-sided copies:" >&2
+    print_recipe import
+    echo "  or lift the local one-sided names to the target:" >&2
+    print_recipe export
+  fi
+  echo "(same-name-different-content is NOT divergence — the mirror overwrites it; only one-sided names fence)" >&2
+  die "fence fired; nothing moved"
+}
+
+# --- forced reconciliation (scoped, exact) --------------------------------------------------
+force_one() {  # $1 = name, $2 = direction; name verified one-sided by caller
+  local n="$1" d="$2"
+  local src_present=no tgt_present=no
+  [ -f "$WDIR/$n" ] && src_present=yes
+  if s3_target; then
+    if grep -F -x -q -- "$n" "$TMP/names.tgt"; then tgt_present=yes; fi
+  else
+    if [ -f "$TARGET/$n" ]; then tgt_present=yes; fi
+  fi
+  if [ "$src_present" = "no" ] && [ "$tgt_present" = "no" ]; then
+    die "--force: '$n' exists on NEITHER side right now — re-run the mirror; it refuses fresh with the current names"
+  fi
+  if s3_target; then
+    if [ "$d" = "export" ]; then
+      if [ "$src_present" = "yes" ]; then
+        aws s3 cp "$WDIR/$n" "$(s3_key "$n")"
+      else
+        aws s3 rm "$(s3_key "$n")"
+      fi
+    else
+      if [ "$tgt_present" = "yes" ]; then
+        mkdir -p "$WDIR/$(dirname "$n")"
+        aws s3 cp "$(s3_key "$n")" "$WDIR/$n"
+      else
+        rm -f "$WDIR/${n:?}"
+      fi
+    fi
+  else
+    if [ "$d" = "export" ]; then
+      if [ "$src_present" = "yes" ]; then
+        mkdir -p "$TARGET/$(dirname "$n")"
+        cp -p "$WDIR/$n" "$TARGET/$n"
+      else
+        rm -f "$TARGET/${n:?}"
+      fi
+    else
+      if [ "$tgt_present" = "yes" ]; then
+        mkdir -p "$WDIR/$(dirname "$n")"
+        cp -p "$TARGET/$n" "$WDIR/$n"
+      else
+        rm -f "$WDIR/${n:?}"
+      fi
+    fi
+  fi
+  echo "  forced $d: $n"
+}
+
+run_force() {  # direction = $CMD; names already captured in FORCE_NAMES_FILE
+  local d="$CMD" n
+  [ -d "$WDIR" ] || { [ "$d" = "import" ] && mkdir -p "$WDIR"; } || true
+  if [ ! -d "$WDIR" ]; then die "no dir at $WDIR — nothing to reconcile"; fi
+  if ! resolve_target; then
+    die "no target wired — wire one: artifacts-sync remote s3://<bucket>/<prefix>/ $WDIR   (one-shot: --target <uri>)"
+  fi
+  validate_target
+  if s3_target && ! need_aws; then
+    die "hatch: aws CLI not on PATH — s3 mode needs it (Debian-class: sudo apt install awscli; macOS: brew install awscli; or use a local-path target)"
+  fi
+  load_names || die "cannot list sides for --force"
+  diff_sides | sed 's/^[-+]//' > "$TMP/valid.names"
+  while IFS= read -r n; do
+    [ -n "$n" ] || continue
+    if ! grep -F -x -q -- "$n" "$TMP/valid.names"; then
+      echo "--force: unknown name '$n' — one-sided names on these sides right now:" >&2
+      sed 's/^/  /' "$TMP/valid.names" >&2
+      echo "(a --force name must be one of the one-sided names — typo protection)" >&2
+      die "no such name: $n"
+    fi
+  done < "$FORCE_NAMES_FILE"
+  while IFS= read -r n; do
+    [ -n "$n" ] || continue
+    force_one "$n" "$d"
+  done < "$FORCE_NAMES_FILE"
+  echo "victims reconciled: exactly those names; nothing else moved. Now re-run the mirror:"
+  echo "  artifacts-sync $d $WDIR"
+  exit 0
+}
+
+# --- the mirror ------------------------------------------------------------------------------
+mirror_up() {
+  list_dir_leaves "$WDIR" | while IFS= read -r n; do
+    [ -n "$n" ] || continue
+    if [ ! -f "$TARGET/$n" ] || ! cmp -s "$WDIR/$n" "$TARGET/$n"; then
+      mkdir -p "$TARGET/$(dirname "$n")"
+      cp -p "$WDIR/$n" "$TARGET/$n"
+      echo "  up:   $n"
+    fi
+  done
+}
+
+mirror_down() {
+  list_dir_leaves "$TARGET" | while IFS= read -r n; do
+    [ -n "$n" ] || continue
+    if [ ! -f "$WDIR/$n" ] || ! cmp -s "$TARGET/$n" "$WDIR/$n"; then
+      mkdir -p "$WDIR/$(dirname "$n")"
+      cp -p "$TARGET/$n" "$WDIR/$n"
+      echo "  down: $n"
+    fi
+  done
+}
+
+run_export() {
+  if ! resolve_target; then
+    die "no target wired — wire one: artifacts-sync remote s3://<bucket>/<prefix>/ $WDIR   (one-shot: --target <uri>; env ARTIFACTS_SYNC_TARGET also honored)"
+  fi
+  validate_target
+  if s3_target && ! need_aws; then
+    die "hatch: aws CLI not on PATH — s3 mode needs it (Debian-class: sudo apt install awscli; macOS: brew install awscli; or use a local-path target)"
+  fi
+  load_names
+  victims_export
+  if [ -s "$TMP/victims" ]; then refuse_divergence export; fi
+  if s3_target; then
+    aws s3 sync "$WDIR/" "$TARGET" --delete --exclude ".sync-target" || die "aws s3 sync (export) failed — see the aws error above"
+  else
+    [ -d "$TARGET" ] || mkdir -p "$TARGET"
+    mirror_up
+  fi
+  echo "exported: $WDIR -> $TARGET ($(line_count "$TMP/names.dir") objects)"
+}
+
+run_import() {
+  if ! resolve_target; then
+    die "no target wired — wire one: artifacts-sync remote s3://<bucket>/<prefix>/ $WDIR   (one-shot: --target <uri>; env ARTIFACTS_SYNC_TARGET also honored)"
+  fi
+  validate_target
+  if s3_target && ! need_aws; then
+    die "hatch: aws CLI not on PATH — s3 mode needs it (Debian-class: sudo apt install awscli; macOS: brew install awscli; or use a local-path target)"
+  fi
+  if [ ! -d "$WDIR" ]; then
+    if [ -n "$DIRARG" ]; then
+      mkdir -p "$WDIR" || die "cannot create $WDIR"
+    else
+      die "no artifacts dir here — create it or name one: artifacts-sync import <dir>"
+    fi
+  fi
+  load_names
+  victims_import
+  if [ -s "$TMP/victims" ]; then refuse_divergence import; fi
+  if s3_target; then
+    aws s3 sync "$TARGET" "$WDIR/" --delete --exclude ".sync-target" || die "aws s3 sync (import) failed — see the aws error above"
+  else
+    mirror_down
+  fi
+  echo "imported: $TARGET -> $WDIR ($(line_count "$TMP/names.tgt") objects)"
+}
+
+# --- remote wiring -----------------------------------------------------------------------------
+wire_write() { printf '%s\n' "$1" > "$TMP/wire.new" && mv "$TMP/wire.new" "$WDIR/.sync-target"; }
+
+gitignore_fence() {
+  local root
+  root="$(git -C "$WDIR" rev-parse --show-toplevel 2>/dev/null)" || return 0
+  [ -n "$root" ] || return 0
+  if [ -f "$root/.gitignore" ] && grep -qx ".sync-target" "$root/.gitignore"; then return 0; fi
+  touch "$root/.gitignore"
+  # newline-safe append: a file not ending in \n must not glue the new entry
+  { cat "$root/.gitignore"; [ -s "$root/.gitignore" ] && [ "$(tail -c 1 "$root/.gitignore" | od -An -c | tr -d ' \n')" != "\n" ] && printf '\n'; echo ".sync-target"; } > "$TMP/gi.new" \
+    && mv "$TMP/gi.new" "$root/.gitignore"
+  echo "gitignore fence: $root/.gitignore now excludes .sync-target"
+}
+
+run_remote() {
+  [ -n "$REMOTE_URI" ] || { echo "usage: artifacts-sync remote [--force] <uri> [<dir>]" >&2; exit 1; }
+  if [ ! -d "$WDIR" ]; then mkdir -p "$WDIR" || die "cannot create $WDIR"; fi
+  TARGET="$REMOTE_URI"
+
+  if [ -f "$WDIR/.sync-target" ]; then
+    OLD="$(cat "$WDIR/.sync-target")"
+    if [ "$OLD" = "$TARGET" ]; then echo "already wired to $TARGET — nothing to do"; exit 0; fi
+    if [ "$VISITED_FORCE" = 0 ]; then
+      die "already wired to '$OLD' — re-wiring is deliberate: artifacts-sync remote --force $TARGET $WDIR   (unwires only; nothing is deleted at the old target)"
+    fi
+    echo "re-wiring (was: $OLD) — nothing deleted at the old target" >&2
+  fi
+
+  validate_target
+  case "$TARGET" in
+    */) : ;;
+    *)
+      echo "normalized (trailing slash added): $TARGET -> $TARGET/"
+      TARGET="$TARGET/" ;;
+  esac
+
+  if [ "$VISITED_FORCE" = 0 ]; then
+    if s3_target; then
+      if ! need_aws; then
+        die "hatch: aws CLI not on PATH — cannot verify the s3 target (Debian-class: sudo apt install awscli), or wire UNVERIFIED with --force"
+      fi
+      if ! s3_ls "$TARGET"; then
+        die "s3 target not reachable: $TARGET (absent bucket, or auth/endpoint unset) — create it / fix auth and re-run, or wire UNVERIFIED: artifacts-sync remote --force $TARGET $WDIR"
+      fi
+    else
+      if [ ! -d "$TARGET" ]; then
+        die "local target is not a dir: $TARGET — mkdir -p \"$TARGET\"  (or wire UNVERIFIED: artifacts-sync remote --force $TARGET $WDIR)"
+      fi
+    fi
+  else
+    echo "WARNING: wired UNVERIFIED (--force): $TARGET — syncs fail until it exists / accepts auth" >&2
+  fi
+
+  wire_write "$TARGET"
+  echo "wired: $WDIR -> $TARGET  ($(cat "$WDIR/.sync-target"))"
+  gitignore_fence
+}
+
+# --- status -------------------------------------------------------------------------------------
+run_status() {
+  if [ ! -d "$WDIR" ]; then echo "dir:  $WDIR  (ABSENT)"; fi
+  if ! resolve_target; then
+    echo "target:  UNWIRED  (no $WDIR/.sync-target, no ARTIFACTS_SYNC_TARGET)"
+    echo "  wire:  artifacts-sync remote s3://<bucket>/<prefix>/ $WDIR"
+    return 0
+  fi
+  echo "target:  $TARGET   [from $T_SRC]"
+  if s3_target; then
+    if need_aws; then
+      if s3_ls "$TARGET" >/dev/null 2>&1; then
+        echo "reachable: yes"
+      else
+        echo "reachable: NO (auth/endpoint or absent bucket)"
+      fi
+    else
+      echo "reachable: UNKNOWN (aws CLI not on PATH)"
+    fi
+  else
+    if [ -d "$TARGET" ]; then echo "reachable: yes"; else echo "reachable: NO (not a dir)"; fi
+  fi
+  [ -d "$WDIR" ] || return 0
+  if ! load_names; then echo "(listing failed — counts/diff unavailable)"; return 0; fi
+  echo "objects: $WDIR=$(line_count "$TMP/names.dir")  target=$(line_count "$TMP/names.tgt")"
+  local donly tonly n
+  donly="$(diff_sides | grep '^+' | sed 's/^+//')"
+  tonly="$(diff_sides | grep '^-' | sed 's/^-//')"
+  if [ -n "$donly" ]; then
+    echo "missing in target (an export would fence):"
+    while IFS= read -r n; do [ -n "$n" ] && printf '  - %s\n' "$n"; done <<EOF2
+$donly
+EOF2
+  fi
+  if [ -n "$tonly" ]; then
+    echo "missing in $WDIR (an import would fetch):"
+    while IFS= read -r n; do [ -n "$n" ] && printf '  - %s\n' "$n"; done <<EOF2
+$tonly
+EOF2
+  fi
+  if [ -z "$donly" ] && [ -z "$tonly" ]; then echo "name parity: CLEAN"; fi
+  return 0
+}
+
+# --- dispatch -------------------------------------------------------------------------------------
+resolve_dir
+
+case "$CMD" in
+  export|import)
+    if [ "$VISITED_FORCE" = 1 ] && [ ! -s "$FORCE_NAMES_FILE" ]; then
+      die "--force needs at least one name (scoped on purpose; a tree-wide force is not offered)"
+    fi
+    if [ -s "$FORCE_NAMES_FILE" ]; then run_force; fi
+    ;;
+esac
+
+case "$CMD" in
+  export) run_export ;;
+  import) run_import ;;
+  remote) run_remote ;;
+  status) run_status ;;
+esac

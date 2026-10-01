@@ -65,6 +65,11 @@ fresh-box.sh       — the one-command box-day bootstrap: installs gh (bare
                      runbook clone + ~/.local/bin (PATH line idempotent),
                      runs the omp/herdr installers when missing, prints the
                      interactive follow-ons it never runs (unit fresh-box-01)
+artifacts-sync     — the objects tier: mirrors artifacts/ ↔ a wired target
+                     (s3://bucket/prefix/ or a plain local path), with mirror
+                     fences (one-sided files refuse, naming an exact --force
+                     recipe); remote/status/import/export; intentional firing
+                     only; local-path mode needs no aws CLI (unit artifacts-sync-01)
 sandbox-test.sh   — the proof: docker container + fresh HOME + machine install + pinned omp
 sbx-test.sh       — the same proof in a real Docker Sandbox microVM (sbx create shell)
 .evidence/        — numbered JSON artifacts + PROOF.md per proven unit
@@ -176,6 +181,29 @@ credential-shaped material is refused with file+line; the escape is
 (hook + repo-at-scaffold) and `.evidence/comms-git-02/` (comms-sync;
 INTENT.md in each = the unit contract). Remote naming: one GitHub repo per
 enclosing folder's comms/, `<slug>-comms`, private (owner decision, 2026-09-29).
+
+## The objects tier (artifacts-sync)
+
+`artifacts/` (PDFs, decks, exports — blobs that must not ride the comms repo) gets its
+own transport: `artifacts-sync export | import | remote <uri> | status` mirrors the
+folder against a wired target — `s3://<bucket>/<prefix>/` (needs the `aws` CLI) or a
+plain local path (needs nothing beyond coreutils). The target is stored in
+`artifacts/.sync-target` (written only by `remote`, gitignored by fence) — one URI,
+passed through verbatim. Same discipline as comms-sync: intentional firing only, no
+daemon/cron, refuses to guess, refusals name their hatch.
+
+**Mirror fences:** a leaf file existing on only ONE side (a deletion the mirror would
+perform) refuses the run and prints the exact scoped recipe —
+`artifacts-sync --force <name…> export|import [<dir>]` reconciles exactly those named
+files and nothing else. Same-name-different-content is NOT a fence (the mirror
+overwrites it — that is what sync means); only one-sided names fence. First lift of a
+folder-lives-only-locally: wire with `remote`, export (import treats the target as
+canonical and seeds down).
+
+AWS deploy + auth shapes (all VERIFY-AT-DEPLOY until run against a live bucket): the
+"Shared-context box" section of [machine.md](machine.md). Evidence:
+`.evidence/artifacts-sync-01/` (roundtrip, fences, moto S3-API flow, hatches,
+bash-3.2 docker).
 
 ## Conventions
 

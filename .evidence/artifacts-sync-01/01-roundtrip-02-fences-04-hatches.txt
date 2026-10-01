@@ -1,0 +1,36 @@
+PASS: 01 wire: remote wires target (trailing slash enforced)
+PASS: 01 wire: trailing slash normalized loudly
+PASS: 01 export: nodeA -> target
+PASS: 01 import: one-shot target -> nodeB
+PASS: 01 converge: nodeA == nodeB (incl. 'nested dir', spaces)
+PASS: 01 import: one-shot writes no wire file
+PASS: 01 status: CLEAN after export
+PASS: 02 fence: export refuses (rc=1) on target-victim
+PASS: 02 fence: 'nothing moved' declared
+PASS: 02 fence: recipe names the victim + exact command
+PASS: 02 fence: target untouched (victim still there)
+PASS: 02 fence: dir-side victim named too (per-direction)
+PASS: 02 fence-b: own recipe reconciles dir-side victim
+PASS: 02 semantics: same-name-diff-content overwrites (not a fence)
+PASS: 02 force: zero names refuses
+PASS: 02 force: unknown name refuses (typo protection)
+PASS: 02 force: victims-only run completes
+PASS: 02 force: victim deleted at target
+PASS: 02 force: non-victims untouched (nodeB's overwrite pre-force stands; scoped, exact)
+PASS: 02 force: shared side untouched
+PASS: 02 export: clean after reconcile
+PASS: 02 import fence: BOTH recipes offered (delete-local vs lift)
+PASS: 02 fence accounting: nodeB's stale victim.txt named in the same refusal
+PASS: 02 import fence: target-canonical recipe deletes ONLY the local copies (target unchanged)
+PASS: 02 import: clean import after reconciliation
+PASS: 04 export: unwired refusal names the remote hatch
+PASS: 04 import: unwired refusal names the remote hatch
+PASS: 04 status: UNWIRED is a state, names the wire command
+PASS: 04 env: ARTIFACTS_SYNC_TARGET honored
+PASS: 04 scheme: ftp:// refused with the corrected form
+PASS: 04 bare bucket: refused (prefix boundary ambiguity)
+PASS: 04 bare bucket: refused via aws-hatch (ambiguity re-asserted in 03)
+PASS: 04 rewire: different-uri refused, names the deliberate command
+PASS: 04 rewire --force: allowed, LOUD, unwires only
+PASS: 04 electivity: prior-art/comms/work refused, each with the tier reason
+=== obligation 01/02/04: 35 pass, 0 fail

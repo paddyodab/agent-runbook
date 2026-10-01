@@ -20,7 +20,7 @@ remote (GitHub, private) = canonical home for comms history.
   comms/          git repo ↔ GitHub private   ← the build target
   work/<repo>/    per-repo git ↔ GitHub       (exists; untouched)
   prior-art/      NOT synced (re-clone)       (unchanged)
-  artifacts/      S3 prefix sync, elective    (PARKED - unit D trigger-gated)
+  artifacts/      S3 prefix sync, elective    (UNPARKED 20261001-02 → unit D)
   README/AGENTS   provisioned by scaffold     (unchanged)
 Nodes: EC2 (pd/dw working copies) + Pat Dev + Dustin Dev (clones) + future
 herdr-dev instances (each single-user). Canonical state = the remote;
@@ -115,11 +115,65 @@ no node is special. Session boundaries are the only sync firing points.
 - **NOT:** implicit folder discovery outside the declared hint.
 - **Depends on:** units 1–2 for semantics to check.
 
-### Unit D (PARKED — trigger-gated) — artifacts S3 wrapper
+### Unit D — artifacts-sync: the objects tier (artifacts/ ↔ S3-prefix-or-rsync target)
 
-- **Do not build until:** the first laptop-only artifact exists AND would
-  be synced. Trigger recorded here; this unit does not exist on the map
-  otherwise. (S3 auth unproven on both nodes; electivity is the design.)
+- **Trigger FIRED (operator, session 20261001-02):** the shared-context loop is
+  now real — EC2 ↔ laptop work needs artifacts as the third transport leg
+  (comms rides git via comms-sync; work repos carry their own remotes;
+  artifacts/ travels nothing today). Operator decisions 2026-10-01: target
+  wired later when a bucket exists; auth decided at deploy (wrapper is
+  auth-agnostic — profile passthrough + refusal hatch).
+- **Problem:** artifacts/ (survey spreadsheets, decks, exports) has no
+  transport leg; rsync-by-memory is the current plan, which is how drift
+  happens between the laptop and the EC2 box.
+- **Outcome:** `artifacts-sync` in the runbook root (PATH-gated like
+  comms-sync), sibling grammar:
+  - `import [<dir>]` / `export [<dir>]` — mirror a folder ↔ its wired target;
+    default dir `./artifacts` (or cwd if it IS artifacts). Target resolution:
+    the file `<artifacts>/.sync-target` (one URI, written ONLY by `remote`),
+    falling back to `ARTIFACTS_SYNC_TARGET` env. Never guesses from flags.
+  - `remote s3://<bucket>[/<prefix>]` / `remote <path>` — wire the target;
+    refuses an existing DIFFERENT target (re-wire is deliberate); verifies
+    reachability first (`aws s3 ls` / `test -d`, `--force` skips verify for a
+    not-yet-existing bucket/path); writes `.sync-target` + appends a fence line
+    to the folder's `.gitignore`.
+  - Mirror fences (refuse, always name the recipe): target without trailing
+    slash = prefix boundary ambiguity → names the exact `remote` re-wire;
+    uncommitted new target → `remote` first; missing target → import seeds the
+    canonical copy, export requires an explicit `--seed`; `--force name1
+    [name…]` = deliberate one-shot mirror of exactly the named victims
+    (post-run, those names are in sync on BOTH sides; nothing else moved).
+  - `status [<dir>]` — wired? target, reachability, per-object counts both
+    sides, name-only diff (unified: missing-in-dir, missing-in-target).
+  - s3 target = `aws s3 sync --dryrun` plumbing (both directions); local path
+    = `rsync -a` (no AWS needed — the two-node EC2↔laptop loop runs today).
+- **Proof obligations (`.evidence/artifacts-sync-01/`):**
+  1. two local "nodes" (two dirs + a third as target) round-trip via the
+     wrapper: export A→T, import T→B, B converges (incl. subdirs + spaces).
+  2. both mirror fences refuse with named recipe; `--force` mirrors exactly
+     the named victims and nothing else.
+  3. S3 API semantics (prefix boundary, no-trailing-slash, delete-on-mirror)
+     proven over a REAL aws-s3-API server — moto in docker (no real creds
+     needed), the wrapper's actual plumbing end-to-end.
+  4. refusal hatches: no wired target (import/export/status), `aws` missing,
+     non-s3/non-path scheme, re-wiring a different target.
+  5. bash 3.2 docker flow in local mode.
+  6. **regression duty:** 32-assertion comms gate green host + bash-3.2
+     docker; shellcheck clean; installer doctor green.
+- **Contexts touched:** new `artifacts-sync`, install.sh (§3 PATH-gate block +
+  doctor dexec entry + uninstall line), machine.yml (aws optional dep),
+  README (objects-tier section), machine.md (§ Shared-context box: deploy
+  recipe + lockdown `g+w` delta + auth-shapes VERIFY-AT-DEPLOY).
+- **NOT:** automatic firing (cron/daemon/watch/comms hooks), comms/ and
+  prior-art/ and work/ sync (this tool is artifacts-bound; other tiers keep
+  their transport), content-level E2E encryption (S SSE-S3 is in-machine.md;
+  richer key mgmt = future unit on real need), versioning/lifecycle/restore
+  drill wiring, real-credential auth choice (decided at deploy, machine.md
+  documents the shapes, all VERIFY-AT-DEPLOY until run on a live bucket),
+  bucket creation automation, doctor comms-folder sweep (unit 4's separate
+  job, untouched), anything in the comms scripts.
+- **Done when:** six obligation artifacts complete + PROOF verdict PASS;
+  ROADMAP topology line unparked; machine.md carries the deploy recipe.
 
 ### Unit 5 — fresh-box.sh: the one-command box-day bootstrap
 
@@ -166,7 +220,7 @@ no node is special. Session boundaries are the only sync firing points.
 
 ## Sequencing & lanes
 
-1 → 2 → (3 ∥ 4) → D(trigger); unit 5 (fresh-box, 20260930) is independent —
+1 → 2 → (3 ∥ 4) → D; unit 5 (fresh-box, 20260930) is independent —
 touch-listed contexts only, lanes may slot beside any of them. Unit 1 is the
 seed unit (hand-done inline;
 gate re-proves the comms priors). Units 2 and 3 touch disjoint files →
