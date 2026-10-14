@@ -334,6 +334,24 @@ no node is special. Session boundaries are the only sync firing points.
   (agent-cooperative stamp); no session-end auto-commit.
 - **Depends on:** nothing.
 
+### Unit preamble-pane-sealed-01 — preamble pane: sealed-skip + real duplicate guard (20261014-03)
+
+- **Problem:** the pane hook's idempotency guard matched `pane list` for a
+  pane label, but this herdr build surfaces no labels (12 keys, verified) —
+  the guard never fired; a post-seal `--resume` verification run re-opened
+  the preamble pane (operator-visible). Also operator rule: a SEALED session
+  should never re-open the ask at all.
+- **Outcome:** in `herdr_preamble_pane_setup` (live canonical, scaffold
+  heredoc mirror byte-parity): (1) sealed handoff → return 0 before any pane
+  work; (2) label filter → cwd match (`.cwd? == $SESS_DIR`, queryable this
+  build). Draft behavior unchanged (fresh draft opens exactly one pane).
+- **Proof:** junk arms in real herdr (draft opens / same-draft no-dupe /
+  sealed opens nothing / live sealed `--resume` opens nothing) —
+  `.evidence/preamble-pane-sealed-01/`; lifecycle 32/32 host + bash:3.2.
+- **NOT:** no session-end changes; no glow-pane changes; no `--resume` flow
+  change beyond the hook; no label/report-metadata usage (fields absent).
+- **Depends on:** nothing.
+
 ## Sequencing & lanes
 
 1 → 2 → (3 ∥ 4) → D; unit 5 (fresh-box, 20260930) is independent —

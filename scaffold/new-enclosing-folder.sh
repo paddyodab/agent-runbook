@@ -557,6 +557,12 @@ herdr_preamble_pane_setup() {
   # Respect a manual opt-out; and skip when the operator already has the preamble
   # open in a foreground editor of this pane (e.g. they ran vi themselves).
   [[ "${COMMS_NO_PREAMBLE_PANE:-}" = 1 ]] && return 0
+  # A sealed session never re-opens the preamble pane: the ask was consumed at
+  # session start; resuming a sealed handoff is append mode, not ask-composition
+  # (operator rule, patdabney/20261014-03). The SEAL marker's absence = sealed.
+  if [[ -f "$SESS_DIR/session-handoff.md" ]] && ! grep -qF "$SEAL" "$SESS_DIR/session-handoff.md"; then
+    return 0
+  fi
 
   EDITOR_BIN=""
   for candidate in "${EDITOR:-}" VISUAL="" vi nvim; do
@@ -570,9 +576,12 @@ herdr_preamble_pane_setup() {
   [[ -n "$EDITOR_BIN" ]] || return 0
 
   if command -v jq >/dev/null 2>&1; then
-    # already open in a "preamble vi" pane (resumed session, pane persisted)? skip.
-    existing=$(herdr pane list --workspace "${HERDR_WORKSPACE_ID:-}" 2>/dev/null \
-      | jq -r '.result.panes[] | select(.label? == "preamble vi") | .pane_id' 2>/dev/null | head -n1)
+    # a pane already sits on this session folder? skip (duplicate guard). Do NOT
+    # match on pane "label": herdr pane list/get does not surface labels in this
+    # build — the old label filter matched nothing every time (verified
+    # patdabney/20261014-03), so it never stopped duplicates. cwd is queryable.
+    existing="$(herdr pane list --workspace "${HERDR_WORKSPACE_ID:-}" 2>/dev/null \
+      | jq -r --arg cwd "$SESS_DIR" '.result.panes[] | select(.cwd? == $cwd) | .pane_id' 2>/dev/null | head -n1)"
     [[ -n "$existing" ]] && return 0
     fg=$(herdr pane process-info --pane "$HERDR_PANE_ID" 2>/dev/null \
          | jq -r '.result.process_info.foreground_processes[0].name // empty')

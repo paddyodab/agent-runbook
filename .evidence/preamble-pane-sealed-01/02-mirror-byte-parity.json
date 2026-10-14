@@ -1,0 +1,10 @@
+{
+  "arm": "02-mirror-byte-parity",
+  "when": "2026-10-14T19:40Z",
+  "checks": [
+    {"name": "scaffold-session-start-heredoc-anchored-splice", "outcome": "pass", "evidence": "grep cat> line + next SCRIPT_EOF; body 18299 B == live 18299 B (cmp, no forced trailing newline)"},
+    {"name": "scaffold-syntax", "outcome": "pass", "evidence": "bash -n clean"},
+    {"name": "fixed-hook-present-in-scaffold", "outcome": "pass", "evidence": "grep 'sealed session never' + 'cwd? == $cwd' → 2 hits"}
+  ],
+  "verdict": "pass"
+}
