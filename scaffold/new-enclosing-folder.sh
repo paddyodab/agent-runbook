@@ -664,11 +664,25 @@ if [[ -f "$SESS_DIR/preamble.txt" ]]; then
   fi
 fi
 
+# current omp agent session id (best effort, displayed only): the newest transcript
+# under the omp sessions dir for a cwd matching THIS enclosing folder, started today
+# or still being written. Never required — the intro prints "(unknown)" when omp
+# sessions are absent/moved (different config dir). Overwatch derives the tie from
+# cwd-slug + time window when this shows (unknown).
+OMP_SESS_DIR="${HOME}/.omp/agent/sessions"
+CUR_SLUG="-$(printf '%s' "$ROOT" | sed "s|^${HOME}||; s|^/||; s|/|-|g")"
+CUR=""
+if [[ -d "$OMP_SESS_DIR/$CUR_SLUG" ]]; then
+  CUR="$(ls -t "$OMP_SESS_DIR/$CUR_SLUG"/*.jsonl 2>/dev/null | head -1 | sed -n 's/.*_\([0-9a-f-]\{36\}\)\.jsonl$/\1/p')"
+fi
+OMP_SESS_LINE="Session id: ${CUR:-(unknown — derive from cwd-slug + folder time)}"
+
 cat <<EOF
 
 === Session intro — $SESS ===
 $PRIOR
 This session's folder: comms/$SESS/   (drop files here; conversation.md is append-only)
+$OMP_SESS_LINE
 
 READ, in order (the only comms context at session start):
   1. comms/README.md                      — the convention (rarely changes)
@@ -827,12 +841,13 @@ MISSING=()
 for s in "${SECTIONS[@]}"; do
   # section present AND has content: at least one non-blank line before the next
   # heading that is neither a template comment (<!-- anywhere in the line, incl.
-  # after a list number) nor boilerplate (placeholder paths, "ONLY these:"). An
-  # untouched template fails this — including an untouched "How to resume".
+  # after a list number) nor boilerplate (placeholder paths, "ONLY these:", the
+  # untouched "0. omp agent session id:" slot — a stamped template must always
+  # still fail an empty "How to resume" fence).
   awk -v sec="$s" '
     index($0, sec) == 1 { in_sec = 1; next }
     in_sec && /^## / { in_sec = 0 }
-    in_sec && $0 !~ /<!--/ && $0 !~ /^[[:space:]]*>/ && $0 !~ /^[[:space:]]*$/ && $0 !~ /(path\/to\/file|ONLY these:|Evidence dirs: `path\/`)/ { found = 1 }
+    in_sec && $0 !~ /<!--/ && $0 !~ /^[[:space:]]*>/ && $0 !~ /^[[:space:]]*$/ && $0 !~ /(path\/to\/file|ONLY these:|Evidence dirs: `path\/`|0\. omp agent session id)/ { found = 1 }
     END { exit found ? 0 : 1 }
   ' "$HANDOFF" || MISSING+=("$s (empty)")
 done
@@ -973,6 +988,7 @@ cat > "$TARGET/comms/templates/session-handoff.md" <<'TEMPLATE_EOF'
 
 ## How to resume   <!-- MANDATORY: the reading manifest for the next session -->
 
+0. omp agent session id: (the agent stamps its session's omp UUID on this line — overwatch derives it from cwd-slug + folder time when unset)
 1. <!-- command to bring the stack up -->
 2. <!-- command to doctor it -->
 3. Files to read for the next piece of work — ONLY these:

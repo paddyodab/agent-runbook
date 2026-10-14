@@ -315,6 +315,25 @@ no node is special. Session boundaries are the only sync firing points.
   existing main history; per-repo stricter rules stay repo-local (this is the floor).
 - **Depends on:** nothing.
 
+### Unit session-tie-01 — omp session id ↔ comms folder ↔ work-repo commits (20261014-03)
+
+- **Problem:** the agentic-session tie (overwatch feasibility, operator preamble
+  patdabney/20261014-03) had to be DERIVED (cwd-slug + time-window containment).
+  Nothing in comms/ is stamped with the omp session UUID; the WORK-repo commit ids
+  live only in handoff prose (fine, but undocumented as the tie mechanism).
+- **Outcome:** handoff template "How to resume" gains slot 0 — `0. omp agent
+  session id: <uuid>` (ONE line — two-line draft defeated the session-end
+  completeness fence: its continuation line counted as content); session-start
+  intro prints `Session id: <newest transcript uuid for this cwd-slug>` (fail-soft
+  `(unknown)` outside omp); session-end fence excludes the untouched slot line as
+  boilerplate; scaffold heredocs re-spliced, cmp byte-parity at anchored bounds.
+  Slug rule proven 18/18: `"-"+cwd minus $HOME, "/"→"-"`.
+- **Proof:** junk arms A/B/C (untouched refuses; id-only refuses; stamped+filled
+  seals) in `.evidence/session-tie-01/03-seal-fence.json`; lifecycle 32/32 host +
+  bash:3.2 docker. NOT: no overwatch build; no auto-fill of the id by session-end
+  (agent-cooperative stamp); no session-end auto-commit.
+- **Depends on:** nothing.
+
 ## Sequencing & lanes
 
 1 → 2 → (3 ∥ 4) → D; unit 5 (fresh-box, 20260930) is independent —
