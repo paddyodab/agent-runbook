@@ -218,6 +218,28 @@ no node is special. Session boundaries are the only sync firing points.
   scope; not called from install.sh (dependency order is fresh-box → install).
 - **Depends on:** nothing (machine.yml already carries the omp install_hint).
 
+### Unit preamble-01 — preamble.txt: the operator's opening ask as a stamped template
+
+- **Problem:** the ask arrives in chat (lost at seal) or as a hand-typed intro.txt the
+  operator adds to every session folder by hand; three of the last four sessions carry
+  one informally. The ask is the WHY of a session — handoffs/conversation record
+  conclusions, never the original ask in the operator's words — and a TUI is cramped
+  for composing it.
+- **Outcome:** `comms/templates/preamble.txt` stamped EMPTY into every fresh session
+  folder; filled preamble routes into session-start's printed manifest READ FIRST
+  (awk: header/comments/blanks skipped — silent when empty); addenda-only ownership;
+  never gates sealing. Documented in comms/README + enclosing AGENTS block.
+- **Bugfix found by the unit:** session-end title-fill sed used `/` delimiters with a
+  slash-bearing `$SESS` — every template-titled handoff (folders created without
+  session-start) refused every seal with `sed: unknown option to 's'`. Pipe
+  delimiters; covered by the suite's seal scenarios.
+- **Proof:** `comms/prove-preamble.sh` 8/8 host + bash-3.2; lifecycle 32/32 host +
+  bash-3.2 (git provisioned per comms-git-01 precedent); scaffold mirror byte-parity
+  (all protocol files + AGENTS.md modulo slug), scaffolded end-to-end notice proven.
+  Evidence: `.evidence/preamble-01/`.
+- **NOT:** no session-end gating on preamble; no auto-linking machinery; no renaming
+  of historical intro.txt files; no comms-sync/artifacts-sync touching.
+
 ## Sequencing & lanes
 
 1 → 2 → (3 ∥ 4) → D; unit 5 (fresh-box, 20260930) is independent —

@@ -155,6 +155,15 @@ operator / agent          what happens
   naming the newest unsealed draft (any user's, prefixed) and the exact salvage command —
   it never guesses. Cross-user seals write the ledger digest to the SEALING user's
   `~/.agent/learnings.md`.
+- **`preamble.txt` is the operator's opening ask.** Every fresh session folder gets an
+  empty one stamped next to the handoff/conversation templates: type the session's ask
+  there before or as the session starts, where editing is comfortable (files beat TUIs
+  for composing, reordering, linking). When it has real content, `session-start.sh`'s
+  printed manifest lists it READ FIRST — the ask routes through the same anti-over-read
+  mechanism as the handoff; the agent reads it without being told twice. The ask then
+  traces forward: `conversation.md` Threads cite it, the handoff's "What this session
+  did" traces back to it. Addenda are fine; the original text is never rewritten. An
+  unfilled preamble (arrived-in-chat ask) never blocks sealing.
 - **Unsealed handoffs are drafts.** The template ships with a `<!-- SEAL: delete this line -->`
   marker; until `session-end.sh` removes it, the file is not canonical, and `session-start.sh`
   will fall back to the newest *sealed* handoff. A session that dies mid-handoff can't poison
@@ -211,7 +220,8 @@ comms/
   README.md                  <- this file: the convention (lasting ordinance)
   session-start.sh           <- the intro (see above)
   session-end.sh             <- the outro (see above)
-  templates/                 <- session-handoff.md + conversation.md skeletons
+  templates/                 <- session-handoff.md + conversation.md + preamble.txt
+                              skeletons
   hooks/pre-push             <- credential scanner guarding every push (see below)
   .gitignore                 <- throwaway classes never enter history (see below)
   .git/                      <- comms/ IS a git repo (transport tier — see below)
@@ -276,6 +286,7 @@ state stays traceable.
 | --- | --- | --- |
 | `comms/README.md` | The convention itself. | Rarely changes. |
 | `comms/templates/*` | Skeletons the scripts stamp out. | Rarely changes. |
+| `comms/<user>/<date>/preamble.txt` | The operator's opening ask, in the operator's own words (typed before/at session start — a file is comfortable to edit in, a TUI is not). Stamped empty by `session-start.sh`; READ FIRST when filled. Append-only: addenda fine, never rewritten. Never sealed/gated — an unfilled preamble never blocks `session-end`. | Written once; addenda only. |
 | `comms/<user>/<date>/session-handoff.md` | Must-know state for the next session. | New file each session. |
 | `comms/<user>/<date>/conversation.md` | The substance/analysis of one conversation. | Append-only within its session. |
 | `comms/<user>/<date>/*` | Operator-dropped context files. | Up to the operator. |
@@ -381,7 +392,7 @@ USER_NAME="${USER:-$(id -un)}"   # sessions are keyed by the OS user (pd, dw, ..
 
 die() { echo "session-start: $*" >&2; exit 1; }
 
-[[ -f "$TEMPLATES/session-handoff.md" && -f "$TEMPLATES/conversation.md" ]] \
+[[ -f "$TEMPLATES/session-handoff.md" && -f "$TEMPLATES/conversation.md" && -f "$TEMPLATES/preamble.txt" ]] \
   || die "missing $TEMPLATES templates — the comms scaffold is damaged"
 case "$USER_NAME" in
   ""|*[!a-zA-Z0-9_.-]*) die "unusable user name '$USER_NAME' — cannot derive comms/$USER_NAME" ;;
@@ -454,6 +465,11 @@ else
   mkdir "$SESS_DIR"
   sed "s/{{DATE-SEQ}}/$SESS_REL/g" "$TEMPLATES/session-handoff.md" > "$SESS_DIR/session-handoff.md"
   sed "s/{{DATE-SEQ}}/$SESS_REL/g" "$TEMPLATES/conversation.md" > "$SESS_DIR/conversation.md"
+  # preamble.txt: the operator's opening ask, stamped EMPTY for the operator to fill
+  # (in a file, where editing is comfortable). No {{DATE-SEQ}} substitution — its
+  # header is a literal, it has no placeholders. Never sealed/gated: an unfilled
+  # preamble never blocks session-end.
+  cp "$TEMPLATES/preamble.txt" "$SESS_DIR/preamble.txt"
 fi
 SESS="$USER_NAME/$SESS_REL"
 
@@ -534,6 +550,21 @@ else
   SECOND="  2. README.md at the enclosing-folder root — this folder's purpose and conventions (no prior handoff)"
 fi
 
+# conditional preamble notice: the stamped preamble carries the operator's opening
+# ask (written before/at session start). If the operator filled it (any real line
+# beyond the template's own header + comment block), the manifest routes it into
+# the reading list — the "operator names them" case, made mechanical.
+PREAMBLE_NOTICE=""
+if [[ -f "$SESS_DIR/preamble.txt" ]]; then
+  if awk '/^#/ {next} /^[[:space:]]*$/ {next}
+          /<!--/ { if ($0 !~ /-->/) skip=1; next }
+          skip { if ($0 ~ /-->/) skip=0; next }
+          { ok=1; exit } END { exit !ok }' \
+        "$SESS_DIR/preamble.txt"; then
+    PREAMBLE_NOTICE="  + comms/$SESS/preamble.txt          — the operator's opening ask (READ FIRST, before the handoff)"
+  fi
+fi
+
 cat <<EOF
 
 === Session intro — $SESS ===
@@ -543,6 +574,7 @@ This session's folder: comms/$SESS/   (drop files here; conversation.md is appen
 READ, in order (the only comms context at session start):
   1. comms/README.md                      — the convention (rarely changes)
 $SECOND
+$PREAMBLE_NOTICE
 
 That's it. No other comms files, no prior-art, unless the handoff or the operator names them.
 
@@ -708,8 +740,11 @@ done
 ((${#MISSING[@]})) && { printf 'session-end: handoff incomplete:\n  %s\n' "${MISSING[*]}" >&2; exit 1; }
 
 # fill the title placeholder if still present (portable in-place edit)
+# pipe delimiter: $SESS contains "/" (user/date-seq) — the old "/"-delimited sed
+# died with "unknown option to 's'" on every template-titled handoff (found by the
+# preamble unit's junk lifecycle, 2026-10-14).
 if grep -q '^# Session handoff — {{DATE-SEQ}}' "$HANDOFF"; then
-  sed "s/^# Session handoff — {{DATE-SEQ}}/# Session handoff — $SESS/" "$HANDOFF" > "$HANDOFF.tmp"
+  sed "s|^# Session handoff — {{DATE-SEQ}}|# Session handoff — $SESS|" "$HANDOFF" > "$HANDOFF.tmp"
   mv "$HANDOFF.tmp" "$HANDOFF"
 fi
 
@@ -897,6 +932,19 @@ cat > "$TARGET/comms/templates/conversation.md" <<'TEMPLATE_EOF'
 
 <!-- Operator-dropped files in this folder that need a sentence of context each. -->
 TEMPLATE_EOF
+cat > "$TARGET/comms/templates/preamble.txt" <<'TEMPLATE_EOF'
+# Preamble
+
+<!-- The operator's opening ask for this session, in the operator's own words —
+     written before or as the session starts, where a terminal is cramped and a
+     file is comfortable. This is the load-bearing record of WHY the session
+     exists: the handoff's "What this session did" and conversation.md's Threads
+     trace back to it.
+     Addenda later in the session are fine (append, never rewrite — the original
+     ask must stay honest for later archaeology).
+     Leave it empty when the ask arrived in chat only. -->
+TEMPLATE_EOF
+
 
 cat > "$TARGET/comms/.gitignore" <<'GITIGNORE_EOF'
 # comms repo: transport the conversation, not the throwaway state.
@@ -1004,6 +1052,11 @@ This enclosing folder has a **scripted session protocol**. Follow it mechanicall
 Conventions in force: `README.md` at the folder root (folder purpose, what's tracked);
 `comms/README.md` (the protocol above, folder layout, handoff contract). Past handoffs are
 immutable — write new ones. Work lands in the built repos; conversation lands in `comms/`.
+Every fresh session folder ships an empty `preamble.txt` — the operator's opening ask,
+typed there before/at session start (a file is comfortable to compose in; a TUI is not).
+When filled, the session intro lists it READ FIRST (before the handoff); trace the ask
+through `conversation.md` Threads and the handoff's "What this session did". Addenda
+only, never rewrite; an unfilled preamble never blocks sealing.
 `comms/` is its own small git repo (transport tier): history moves between boxes ONLY
 deliberately — export after a seal or at a grab-and-go pause, import at session start —
 and its `pre-push` hook refuses credential-shaped material; the escape is
