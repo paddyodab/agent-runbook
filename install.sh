@@ -200,6 +200,30 @@ fi
 
 # 3. Scaffold (copy, exec bit — only if ~/.local/bin exists and is on PATH;
 #    refuse to clobber a foreign file, replace our own prior install atomically)
+
+# provenance_or_refuse SRC DST — the shared refuse-fence for PATH-installed tools.
+# When DST exists, is not a symlink, and differs from SRC:
+#   - drift provable as version-age (repo is a git repo AND dst == git blob at
+#     HEAD:<relpath>) → NOTE + return 0; caller proceeds with the atomic overwrite.
+#   - unverifiable → REFUSED + a named recipe with real paths; exit 1.
+provenance_or_refuse() {
+  local src="$1" dst="$2" rel tmp
+  rel="${src#"$HERE/"}"
+  if git -C "$HERE" rev-parse --verify HEAD >/dev/null 2>&1 \
+     && git -C "$HERE" show "HEAD:$rel" 2>/dev/null | cmp -s - "$dst"; then
+    echo "NOTE: $dst drifts from this repo's worktree but matches git HEAD:$rel"
+    echo "  — version-age drift (a merged unit shipped newer code); auto-cutting over."
+    return 0
+  fi
+  echo "REFUSED: $dst exists and differs from this repo's copy." >&2
+  echo "  Diagnose first — is the worktree copy or the installed copy the one you trust?" >&2
+  echo "    git -C $HERE show HEAD:$rel | cmp - $dst    (both must be read from the real paths)" >&2
+  echo "  If the installed copy is junk/stale and you want THIS worktree's copy installed:" >&2
+  tmp="$(mktemp)"
+  echo "    cp $src $tmp && chmod 755 $tmp && mv $tmp $dst && $0 --doctor" >&2
+  exit 1
+}
+
 MIGRATE_SRC="$HERE/migrate-user-comms.sh"
 MIGRATE_DST="${HOME}/.local/bin/migrate-user-comms.sh"
 if [ "$DOCTOR" != "1" ] && [ -x "$MIGRATE_SRC" ] && [ -d "${HOME}/.local/bin" ]; then
@@ -209,9 +233,7 @@ if [ "$DOCTOR" != "1" ] && [ -x "$MIGRATE_SRC" ] && [ -d "${HOME}/.local/bin" ];
         rm "$MIGRATE_DST"
       elif [ -e "$MIGRATE_DST" ]; then
         if ! cmp -s "$MIGRATE_DST" "$MIGRATE_SRC"; then
-          echo "REFUSED: $MIGRATE_DST exists and differs from this repo's copy." >&2
-          echo "  Reconcile, then re-run. Refusing to overwrite." >&2
-          exit 1
+          provenance_or_refuse "$MIGRATE_SRC" "$MIGRATE_DST"
         fi
       fi
       tmp_mig="$(mktemp)"
@@ -234,9 +256,7 @@ if [ "$DOCTOR" != "1" ] && [ -x "$SYNCSRC" ] && [ -d "${HOME}/.local/bin" ]; the
         rm "$SYNCDST"
       elif [ -e "$SYNCDST" ]; then
         if ! cmp -s "$SYNCDST" "$SYNCSRC"; then
-          echo "REFUSED: $SYNCDST exists and differs from this repo's copy." >&2
-          echo "  Reconcile, then re-run. Refusing to overwrite." >&2
-          exit 1
+          provenance_or_refuse "$SYNCSRC" "$SYNCDST"
         fi
       fi
       tmp_sync="$(mktemp)"
@@ -259,9 +279,7 @@ if [ "$DOCTOR" != "1" ] && [ -x "$FRESHBOX_SRC" ] && [ -d "${HOME}/.local/bin" ]
         rm "$FRESHBOX_DST"
       elif [ -e "$FRESHBOX_DST" ]; then
         if ! cmp -s "$FRESHBOX_DST" "$FRESHBOX_SRC"; then
-          echo "REFUSED: $FRESHBOX_DST exists and differs from this repo's copy." >&2
-          echo "  Reconcile, then re-run. Refusing to overwrite." >&2
-          exit 1
+          provenance_or_refuse "$FRESHBOX_SRC" "$FRESHBOX_DST"
         fi
       fi
       tmp_fb="$(mktemp)"
@@ -285,9 +303,7 @@ if [ "$DOCTOR" != "1" ] && [ -x "$ARTSRC" ] && [ -d "${HOME}/.local/bin" ]; then
         rm "$ARTDST"
       elif [ -e "$ARTDST" ]; then
         if ! cmp -s "$ARTDST" "$ARTSRC"; then
-          echo "REFUSED: $ARTDST exists and differs from this repo's copy." >&2
-          echo "  Reconcile, then re-run. Refusing to overwrite." >&2
-          exit 1
+          provenance_or_refuse "$ARTSRC" "$ARTDST"
         fi
       fi
       tmp_art="$(mktemp)"
@@ -311,9 +327,7 @@ if [ "$DOCTOR" != "1" ] && [ -x "$GLOWSRC" ] && [ -d "${HOME}/.local/bin" ]; the
         rm "$GLOWDST"
       elif [ -e "$GLOWDST" ]; then
         if ! cmp -s "$GLOWDST" "$GLOWSRC"; then
-          echo "REFUSED: $GLOWDST exists and differs from this repo's copy." >&2
-          echo "  Reconcile, then re-run. Refusing to overwrite." >&2
-          exit 1
+          provenance_or_refuse "$GLOWSRC" "$GLOWDST"
         fi
       fi
       tmp_glow="$(mktemp)"
@@ -336,10 +350,7 @@ if [ "$DOCTOR" != "1" ] && [ -x "$SCAFFOLD_SRC" ] && [ -d "${HOME}/.local/bin" ]
         if cmp -s "$SCAFFOLD_DST" "$SCAFFOLD_SRC"; then
           : # same content; refresh below
         else
-          echo "REFUSED: $SCAFFOLD_DST exists and differs from this repo's copy." >&2
-          echo "  If it is your own customization: diff it against scaffold/new-enclosing-folder.sh," >&2
-          echo "  reconcile, then re-run. Refusing to overwrite." >&2
-          exit 1
+          provenance_or_refuse "$SCAFFOLD_SRC" "$SCAFFOLD_DST"
         fi
       fi
       tmp_cp="$(mktemp)"
