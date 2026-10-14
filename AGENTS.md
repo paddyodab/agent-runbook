@@ -70,6 +70,13 @@ into `prior-art/`. When the operator names a repo to work on, create/open
 folder layout ("you'll need to create a work folder") as acceptance criteria, not
 suggestions: if one was missed, say so and create it before starting the ticket.
 
+**Branch policy: feature-branch work, never main.** Every change to a `work/<repo>`
+checkout lands on a feature branch (`feature/<unit-or-slug>`), created before the first
+edit; commit on the branch, never on `main`/`master`. Merge to main is the operator's
+deliberate act (push + PR, or an explicit local merge they request) — never an agent's
+own initiative. Other repos under `work/` may carry stricter branch rules; this is the
+floor, baked in at scaffold time.
+
 **Proven-fix finish line.** A fix is not done when it compiles or tests pass locally.
 When a change is proven (repro gone, tests green), stop and offer the operator the
 finish line before ending the turn: push the branch and open/update the PR (GitHub PR

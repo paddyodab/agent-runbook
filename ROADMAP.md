@@ -268,6 +268,53 @@ no node is special. Session boundaries are the only sync firing points.
   vi/nvim fallback (no Windows editor list).
 - **Depends on:** nothing (prototype exists live; scaffold mirror is mechanical).
 
+### Unit prior-art-refresh-01 — session-start refreshes prior-art from origin (20261014-02)
+
+- **Problem:** `prior-art/` repos go stale between sessions; an agent referencing one
+  reads last-fetch state, not the latest. The operator's ask (preamble 20261014-02):
+  session-start should fetch/ff-pull each prior-art repo so references are current.
+- **Outcome:** live `comms/session-start.sh` gains a fail-soft prior-art refresh block
+  before the intro print: per repo with origin — fetch, dirty-check, ff-only pull
+  (`origin HEAD`); per-repo status lines appended to the intro (refreshed <head> /
+  DIRTY pull skipped / DIVERGED ff refused / no origin left as-is). No repo is ever
+  mutated beyond ff: diversions are named, never resolved, by the script. Mirror
+  contract: scaffold session-start heredoc re-spliced from live (byte-parity, cmp);
+  doc duty in comms/README "Outside comms" + enclosing README heredoc.
+- **Proof obligations (`.evidence/prior-art-refresh-01/`):** fixture arms — refreshed
+  (behind → fast-forwarded, head matches origin), DIVERGED (local head kept, refusal
+  named), DIRTY (fetch only, pull skipped, tree untouched), no-remote (left as-is),
+  empty/missing prior-art (intro unchanged, rc=0), non-repo dir skipped; lifecycle
+  gate 32/32 host + bash:3.2; scaffold junk-build byte-parity incl. session-start.
+- **Contexts touched:** live comms/session-start.sh + comms/README.md (this enclosing
+  folder), scaffold heredocs (session-start, README), ROADMAP.
+- **NOT:** no rebase/force resolve (divergence is named, never auto-fixed); no push of
+  any kind from prior-art; no non-git prior-art content sync; no session-start flag
+  to skip (fail-soft covers every failure); no changes to session-end.
+- **Depends on:** nothing (prior-art/ exists in every scaffolded folder since 20260907).
+
+### Unit work-branch-policy-01 — feature-branch floor baked into the enclosing contract (20261014-02)
+
+- **Problem:** `work/` tickets have been committing to `main` (agent-runbook's only
+  remote policy so far); other repos under `work/` will likely forbid that, and the
+  policy existed nowhere — agent behavior depended on per-session memory.
+- **Outcome:** one branch-policy paragraph, byte-identical in three places (cmp
+  verified): runbook AGENTS.md (work-copies section), enclosing AGENTS.md heredoc +
+  live enclosing AGENTS.md — "every change lands on a feature branch
+  (`feature/<unit-or-slug>`) created before the first edit; commit on the branch,
+  never main/master; merge to main is the operator's deliberate act". Scaffold bakes
+  it into every new enclosing folder at stamp time.
+- **Proof obligations (`.evidence/work-branch-policy-01/`):** three texts cmp-equal;
+  junk-build scaffold → stamped AGENTS.md carries the paragraph; this session's own
+  work/agent-runbook commits landed on `feature/prior-art-refresh-branch-policy`
+  (dogfood: branch exists before first edit, no main commit this session); lifecycle
+  gate + doctor green after cutover.
+- **Contexts touched:** runbook AGENTS.md, scaffold AGENTS heredoc, this enclosing
+  folder's AGENTS.md, ROADMAP.
+- **NOT:** no enforcement hook (git hooks live in comms/, not work repos — policy
+  text only); no branch-name linter; no CI wiring; no retroactive rewrite of the
+  existing main history; per-repo stricter rules stay repo-local (this is the floor).
+- **Depends on:** nothing.
+
 ## Sequencing & lanes
 
 1 → 2 → (3 ∥ 4) → D; unit 5 (fresh-box, 20260930) is independent —
