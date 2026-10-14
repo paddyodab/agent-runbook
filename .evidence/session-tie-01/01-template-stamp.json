@@ -1,0 +1,12 @@
+{
+  "arm": "01-template-stamp",
+  "when": "2026-10-14T19:00Z",
+  "fixture": "/tmp/session-tie.ivtHoA/st-je2",
+  "checks": [
+    {"name": "scaffold-build-completes", "rc": 0, "outcome": "pass"},
+    {"name": "stamped-template-carries-id-slot", "outcome": "pass", "evidence": "grep 'omp agent session id' comms/templates/session-handoff.md -> line 22"},
+    {"name": "session-start-intro-prints-session-id-line", "outcome": "pass", "evidence": "Session id: (unknown — derive from cwd-slug + folder time) on the junk box (no omp sessions dir there)"},
+    {"name": "live-box-prints-real-uuid", "outcome": "pass", "evidence": "comms/session-start.sh --resume on agent-runbook-next prints Session id: 01a13bae-5c59-7762-ab14-cf832b3c02d3"}
+  ],
+  "verdict": "pass"
+}

@@ -1,0 +1,15 @@
+{
+  "arm": "02-session-tie",
+  "when": "2026-10-14T19:00Z",
+  "session": {
+    "omp_uuid": "01a13bae-5c59-7762-ab14-cf832b3c02d3",
+    "transcript": "~/.omp/agent/sessions/-Documents-GitHub-shared-context-behaviors-agent-runbook-next/2026-10-14T18-30-45-081Z_01a13bae-5c59-7762-ab14-cf832b3c02d3.jsonl",
+    "stamped_in": "comms/patdabney/20261014-03/session-handoff.md (How to resume slot 0)"
+  },
+  "tie_mechanisms": [
+    {"name": "session-uuid-stamped-in-handoff", "outcome": "pass", "evidence": "handoff line 22 carries the UUID; transcript session record carries the same"},
+    {"name": "time-window-derivation", "outcome": "pass", "evidence": "transcript span 17:54:51Z-18:30:35Z contains work-repo commit timestamps 18:10:57Z/18:14:59Z/18:22:58Z/18:25:02Z (bb58e65 3c39219 e0d4b07 2c80008)"},
+    {"name": "cwd-slug-rule", "outcome": "pass", "evidence": "18/18 populated session dirs match '-'+cwd-with-$HOME-stripped-slash-to-dash"}
+  ],
+  "verdict": "pass"
+}
