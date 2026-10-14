@@ -148,13 +148,28 @@ schema change, comms slot-0 format change.
 
 ## Open questions
 
-- None blocking design (defaults chosen with operator this session): declared
+- None blocking v1 design (defaults chosen with operator this session): declared
   discovery (not auto-glob), user+assistant turns, name `overwatch`,
   index untracked-in-comms, GitHub-remote posture (gh optional).
+
+**Operator goal addendum (session close, 2026-10-14):** the end state is a
+**separate service/agent whose context does not interfere with the working
+session's context — advisor/question-answerer for the OPERATOR.** Binding on this
+unit and beyond:
+
+- v1 CLI satisfies context isolation by construction (no model, no conversation).
+- The CLIENT is the operator; the coding agent is never required to invoke it and
+  advisor answers never route through a working session's context.
+- Advisor chat surface (options in mind note 002: throwaway omp session /
+  advisor pane) is a SEPARATE LATER unit, after the index exists; if built, its
+  sessions must land in their own transcript space so working/advisor sessions
+  stay separable in the index.
 
 ## NOT-list
 
 - No overwatch daemon/agent/always-on process; no fs watcher; no cron.
+  (Operator's separate-advisor GOAL stands; the ADVISOR SURFACE is a later unit —
+  not this one. v1 = context-free CLI substrate only.)
 - No omp/homeroom writes: no history.db/agent.db schema or data changes.
 - No transcript excerpts, comms prose, or mind-note content IN the index or any
   output file (turns print to stdout only; preamble excerpt only via `why`).

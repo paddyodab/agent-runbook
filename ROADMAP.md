@@ -385,6 +385,9 @@ no node is special. Session boundaries are the only sync firing points.
   session-end changes; no sandbox/comms-sync changes.
 - **Depends on:** session-tie-01 (slot-0 stamp is an authoritative tie source;
   pre-stamp folders resolve derived — both paths proven).
+- **Operator goal addendum (20261014-04 close):** end state = separate-context
+  ADVISOR for the operator (advisor chat surface = later unit; v1 CLI is the
+  context-free substrate all advisor options share).
 
 ## Sequencing & lanes
 
