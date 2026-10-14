@@ -352,6 +352,40 @@ no node is special. Session boundaries are the only sync firing points.
   change beyond the hook; no label/report-metadata usage (fields absent).
 - **Depends on:** nothing.
 
+### Unit overwatch-01 — overwatch CLI: the why/what query surface over a derived index (20261014-04)
+
+- **Problem:** the operator's questions — "how did we come to make this change
+  (who, what were they thinking)?" and "what did we work on related to this
+  commit/class?" — have all material present (transcripts, history.db
+  titles/recaps, comms corpus, work-repo commits) but nothing JOINS it; today
+  the join is human archaeology. Overwatch is deliberately NOT an agent or
+  daemon: batch CLI + derived index, fires only when invoked (design note:
+  comms/patdabney/20261014-04/mind/001-overwatch-design.md).
+- **Outcome:** `overwatch` CLI (runbook root, PATH-gated install) over
+  `comms/.overwatch-index.jsonl` (gitignored, derived, per-node): rebuild /
+  status / why <sha|path|symbol> / turns <uuid> [--all] / related <text> /
+  tie <uuid|folder>. Tie resolution: handoff slot-0 UUID authoritative,
+  transcript-window ∩ comms-folder dates derived (ambiguity kept, never
+  guessed), work-repo commits by author-date inside transcript windows
+  (`git log --all`); history.db titles/recaps joined read-only; session-start
+  gains ONE fail-soft `overwatch rebuild` hook (only when installed).
+- **Proof obligations:** `.evidence/overwatch-01/` 01–08 per INTENT
+  (rebuild idempotent + pointers-only body check; WHY-join ground truth = the
+  20261014-02 commits bb58e65/3c39219/e0d4b07/2c80008 resolving to
+  comms/patdabney/20261014-02; symbol-why incl. clean-empty arm; turns on this
+  session's uuid; related ranked hits; tie on 20261014-03 + derived-window arm
+  for pre-slot-0 20261014-01 + synthetic ambiguous-overlap junk-HOME arm;
+  lifecycle 32/32 host + bash:3.2; shellcheck; doctor honest).
+- **Contexts touched:** new `overwatch`, comms/session-start.sh (live + scaffold
+  mirror), install.sh, README.md, machine.md, machine.yml, ROADMAP.
+- **NOT:** no daemon/watcher/cron (never automatic on the prose tier); no omp
+  writes; no transcript/comms prose in index or output files (turns print only);
+  no committed index snapshot; no prior-art/artifacts/ indexing; no remote
+  API (GitHub REST/GraphQL; gh only optional plumbing in a later unit); no
+  session-end changes; no sandbox/comms-sync changes.
+- **Depends on:** session-tie-01 (slot-0 stamp is an authoritative tie source;
+  pre-stamp folders resolve derived — both paths proven).
+
 ## Sequencing & lanes
 
 1 → 2 → (3 ∥ 4) → D; unit 5 (fresh-box, 20260930) is independent —
