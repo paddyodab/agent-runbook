@@ -13,7 +13,7 @@ docker sandbox). Fresh install, all the extras, nothing accumulated by accident.
 | `install.sh --doctor` | Read-only report: what's missing, what drifted. Runs before every mutation, writes nothing | this repo |
 | `sandbox-test.sh` | The proof: docker container (debian + the repo mounted), fresh HOME, machine install, pinned omp via mise, `omp --print` round-trip when auth is provided | this repo |
 | `sbx-test.sh` | Same proof in a real Docker Sandbox microVM (`sbx create shell`), virgin HOME, machine install, pinned omp, optional `omp --print` | this repo |
-| scaffold (`new-enclosing-folder.sh`) | The enclosing-folder stamp (comms protocol, prior-art read-only, artifacts/) | this repo |
+| scaffold (`new-enclosing-folder.sh`) | The enclosing-folder stamp (comms protocol + herdr preamble-pane hook, `comms/glow-pane.sh`, prior-art read-only, artifacts/, `work/` edit-copies tier) | this repo |
 
 ## Ticketing = an adapter slot, not a runbook feature
 

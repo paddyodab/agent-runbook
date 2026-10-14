@@ -301,6 +301,32 @@ if [ "$DOCTOR" != "1" ] && [ -x "$ARTSRC" ] && [ -d "${HOME}/.local/bin" ]; then
   esac
 fi
 
+# 3d-2. glow-pane (copy, exec bit — same PATH gate + refuse-fence class)
+GLOWSRC="$HERE/glow-pane.sh"
+GLOWDST="${HOME}/.local/bin/glow-pane.sh"
+if [ "$DOCTOR" != "1" ] && [ -x "$GLOWSRC" ] && [ -d "${HOME}/.local/bin" ]; then
+  case ":$PATH:" in
+    *":${HOME}/.local/bin:"*)
+      if [ -L "$GLOWDST" ]; then
+        rm "$GLOWDST"
+      elif [ -e "$GLOWDST" ]; then
+        if ! cmp -s "$GLOWDST" "$GLOWSRC"; then
+          echo "REFUSED: $GLOWDST exists and differs from this repo's copy." >&2
+          echo "  Reconcile, then re-run. Refusing to overwrite." >&2
+          exit 1
+        fi
+      fi
+      tmp_glow="$(mktemp)"
+      cat "$GLOWSRC" > "$tmp_glow"
+      chmod 755 "$tmp_glow"
+      mv "$tmp_glow" "$GLOWDST"
+
+      installed="$installed
+  $GLOWDST (glow-pane installed)"
+      ;;
+  esac
+fi
+
 if [ "$DOCTOR" != "1" ] && [ -x "$SCAFFOLD_SRC" ] && [ -d "${HOME}/.local/bin" ]; then
   case ":$PATH:" in
     *":${HOME}/.local/bin:"*)
@@ -458,7 +484,7 @@ if [ "$DOCTOR" = "1" ]; then
   # scaffold + migrator installed-copy parity (PATH-gated installs)
   case ":$PATH:" in
     *":${HOME}/.local/bin:"*)
-      for dexec in comms-sync migrate-user-comms.sh new-enclosing-folder.sh fresh-box.sh artifacts-sync; do
+      for dexec in comms-sync migrate-user-comms.sh new-enclosing-folder.sh fresh-box.sh artifacts-sync glow-pane.sh; do
         ddst="${HOME}/.local/bin/$dexec"
         dsrc="$HERE/$dexec"
         [ "$dexec" = "new-enclosing-folder.sh" ] && dsrc="$HERE/scaffold/$dexec"
@@ -495,6 +521,6 @@ WARNINGS:
 $warn
 }
 Uninstall: remove the marked block from $OMP_AGENTS, the skill symlinks under
-$OMP_SKILLS and $AGENTS_SKILLS, $SCAFFOLD_DST, $SYNCDST, $FRESHBOX_DST, $ARTDST if installed,
+$OMP_SKILLS and $AGENTS_SKILLS, $SCAFFOLD_DST, $SYNCDST, $FRESHBOX_DST, $ARTDST, $GLOWDST if installed,
 and any adapter clone under ~/.omp/adapters/.
 EOF

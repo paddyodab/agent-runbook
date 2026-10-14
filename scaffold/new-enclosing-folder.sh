@@ -21,7 +21,7 @@ TARGET_REAL="$PARENT/$FOLDER"
 # midway cannot leave a half-built folder. Portable: no in-place sed; works with stock
 # bash 3.2 / BSD sed (macOS) — the scaffolded session scripts are also bash-3.2-safe.
 STAGE="$PARENT/.$FOLDER.scaffold-$$"
-mkdir -p "$STAGE/comms/templates" "$STAGE/prior-art" "$STAGE/artifacts"
+mkdir -p "$STAGE/comms/templates" "$STAGE/prior-art" "$STAGE/artifacts" "$STAGE/work"
 TARGET="$STAGE"   # heredocs below write into the staging dir
 cleanup() { rm -rf "$STAGE"; }
 trap cleanup EXIT
@@ -164,6 +164,17 @@ operator / agent          what happens
   traces forward: `conversation.md` Threads cite it, the handoff's "What this session
   did" traces back to it. Addenda are fine; the original text is never rewritten. An
   unfilled preamble (arrived-in-chat ask) never blocks sealing.
+- **herdr preamble pane (road-tested 2026-10-14, `agent-runbook-next`).** When
+  `session-start.sh` runs inside a herdr session (`HERDR_ENV=1`) and the preamble is
+  not already open, the script splits a 30% pane to the right, renames it
+  `preamble vi`, and opens the preamble in `$EDITOR` (probed vi/nvim — never trusted
+  blindly; some boxes ship `EDITOR=true`). It is fail-soft (missing herdr/jq/editor
+  or a pane-API refusal silently skips, never blocks session start), idempotent
+  (resumed sessions skip when a `preamble vi` pane already exists), and an explicit
+  foreground editor in the calling pane also skips it. Opt out with
+  `COMMS_NO_PREAMBLE_PANE=1`. Assessments and handoffs can be displayed rendered via
+  `./comms/glow-pane.sh <file.md>` — opens/replaces a `glow: <label>` pane running
+  `glow -p`, or plain stdout rendering outside herdr.
 - **Unsealed handoffs are drafts.** The template ships with a `<!-- SEAL: delete this line -->`
   marker; until `session-end.sh` removes it, the file is not canonical, and `session-start.sh`
   will fall back to the newest *sealed* handoff. A session that dies mid-handoff can't poison
@@ -524,6 +535,54 @@ if (( ${#ALL_BUT_OWN[@]} )); then
     PREV_SEALED="$NEWEST"
   fi
 fi
+
+# --- herdr preamble pane hook ----------------------------------------------------
+# When running inside herdr and the operator hasn't already opened the preamble in
+# a foreground editor, open it in a $EDITOR (fallback: vi/nvim) pane beside the
+# user's pane — so "writing the opening ask" is typing in an editor, not composing
+# in a TUI. Fail-soft everywhere: any missing piece (no herdr binary, not inside
+# herdr, no editor, no preamble, editor already up) just skips; the hook must never
+# block or fail session start itself. All herdr calls take explicit pane IDs so a
+# concurrent agent never steals focus.
+herdr_preamble_pane_setup() {
+  command -v herdr >/dev/null 2>&1 || return 0
+  [[ "${HERDR_ENV:-}" = 1 && -n "${HERDR_PANE_ID:-}" ]] || return 0
+  [[ -f "$SESS_DIR/preamble.txt" ]] || return 0
+  # Respect a manual opt-out; and skip when the operator already has the preamble
+  # open in a foreground editor of this pane (e.g. they ran vi themselves).
+  [[ "${COMMS_NO_PREAMBLE_PANE:-}" = 1 ]] && return 0
+
+  EDITOR_BIN=""
+  for candidate in "${EDITOR:-}" VISUAL="" vi nvim; do
+    cand="${candidate:-}"
+    case "$cand" in
+      ""|true|false) continue ;;                # some boxes ship EDITOR=true — unusable
+      *[!a-zA-Z0-9_./-]*) continue ;;          # flags/args in $EDITOR not supported here
+    esac
+    command -v "$cand" >/dev/null 2>&1 && EDITOR_BIN="$cand" && break
+  done
+  [[ -n "$EDITOR_BIN" ]] || return 0
+
+  if command -v jq >/dev/null 2>&1; then
+    # already open in a "preamble vi" pane (resumed session, pane persisted)? skip.
+    existing=$(herdr pane list --workspace "${HERDR_WORKSPACE_ID:-}" 2>/dev/null \
+      | jq -r '.result.panes[] | select(.label? == "preamble vi") | .pane_id' 2>/dev/null | head -n1)
+    [[ -n "$existing" ]] && return 0
+    fg=$(herdr pane process-info --pane "$HERDR_PANE_ID" 2>/dev/null \
+         | jq -r '.result.process_info.foreground_processes[0].name // empty')
+    case "$fg" in
+      nvim|vim|vi|nano|emacs|micro|zed) return 0 ;;   # user's already editing something
+    esac
+  fi
+
+  OUT=$(herdr pane split --pane "$HERDR_PANE_ID" --direction right --ratio 0.3 \
+        --cwd "$SESS_DIR" --env "GLARE_DISABLED=1" 2>/dev/null) || return 0
+  NEW_ID=$(printf '%s' "$OUT" | jq -r '.result.pane.pane_id // empty' 2>/dev/null)
+  [[ -n "$NEW_ID" ]] || return 0
+  herdr pane rename "$NEW_ID" "preamble vi" >/dev/null 2>&1
+  herdr pane run "$NEW_ID" "$EDITOR_BIN '$SESS_DIR/preamble.txt'" >/dev/null 2>&1
+}
+herdr_preamble_pane_setup || true
 
 # --- print the intro ------------------------------------------------------------
 NEWEST_ALL=""
@@ -945,6 +1004,60 @@ cat > "$TARGET/comms/templates/preamble.txt" <<'TEMPLATE_EOF'
      Leave it empty when the ask arrived in chat only. -->
 TEMPLATE_EOF
 
+cat > "$TARGET/comms/glow-pane.sh" <<'GLOW_EOF'
+#!/usr/bin/env bash
+# glow-pane.sh — open a markdown file in a herdr pane rendered by `glow`.
+#
+# Usage: ./comms/glow-pane.sh <file.md> [label]
+#
+# Behavior:
+#   - Inside herdr (HERDR_ENV=1): splits the calling pane right, runs
+#     `glow -p <file>` there (glow's pager: scrollable, q quits, returns
+#     the pane's shell to a prompt when done), names the pane, and prints
+#     the pane id. Re-invoking on the same file re-renders in the SAME
+#     "glow" pane rather than stacking splits — the pane is closed and
+#     re-created in place.
+#   - Outside herdr: prints the file rendered to stdout with glow -w0
+#     (no pager), so the agent can read it back or the operator can pipe it.
+#
+# Fail-soft: if herdr/glow is missing or the socket refuses, fall back to
+# plain stdout rendering. Never leaves a spinner: `-p` puts glow in its
+# own pager process; when it exits the pane shows the shell prompt.
+set -uo pipefail
+
+FILE="${1:-}"
+[[ -n "$FILE" ]] || { echo "usage: glow-pane.sh <file.md> [label]" >&2; exit 2; }
+[[ -f "$FILE" ]] || { echo "glow-pane.sh: no such file: $FILE" >&2; exit 1; }
+FILE="$(cd "$(dirname "$FILE")" && pwd)/$(basename "$FILE")"
+LABEL="${2:-$(basename "$FILE" .md)}"
+
+command -v glow >/dev/null 2>&1 || { glow -w0 "$FILE"; exit 0; }
+
+if [[ "${HERDR_ENV:-}" = 1 && -n "${HERDR_PANE_ID:-}" ]] && command -v herdr >/dev/null 2>&1; then
+  WS="${HERDR_WORKSPACE_ID:-}"
+  OLD_ID=""
+  if [[ -n "$WS" ]]; then
+    OLD_ID=$(herdr pane list --workspace "$WS" 2>/dev/null \
+      | jq -r --arg lbl "glow: $LABEL" \
+        '.result.panes[] | select(.label? == $lbl) | .pane_id' 2>/dev/null | head -n1)
+  fi
+  # idempotent re-render: replace the previous glow pane for this document
+  [[ -n "$OLD_ID" ]] && herdr pane close "$OLD_ID" >/dev/null 2>&1
+
+  OUT=$(herdr pane split --pane "$HERDR_PANE_ID" --direction right --ratio 0.5 \
+        --cwd "$(dirname "$FILE")" 2>/dev/null) || { glow -w0 "$FILE"; exit 0; }
+  NEW_ID=$(printf '%s' "$OUT" | jq -r '.result.pane.pane_id // empty' 2>/dev/null)
+  if [[ -z "$NEW_ID" ]]; then glow -w0 "$FILE"; exit 0; fi
+
+  herdr pane rename "$NEW_ID" "glow: $LABEL" >/dev/null 2>&1
+  herdr pane wait-output "$NEW_ID" --match . --lines 1 --timeout 2000 >/dev/null 2>&1
+  herdr pane run "$NEW_ID" "glow -p '$FILE'" >/dev/null 2>&1
+  echo "$NEW_ID"
+  exit 0
+fi
+
+glow -w0 "$FILE"
+GLOW_EOF
 
 cat > "$TARGET/comms/.gitignore" <<'GITIGNORE_EOF'
 # comms repo: transport the conversation, not the throwaway state.
@@ -1088,6 +1201,8 @@ echo "  - $TARGET_REAL/README.md"
 echo "  - $TARGET_REAL/AGENTS.md (session protocol, auto-loaded by agent sessions)"
 echo "  - $TARGET_REAL/comms/README.md"
 echo "  - $TARGET_REAL/comms/session-start.sh + session-end.sh + templates/"
+echo "  - $TARGET_REAL/comms/glow-pane.sh (markdown-in-a-herdr-pane viewer; stdout fallback)"
+echo "  - $TARGET_REAL/work/            (edit copies of studied repos; prior-art stays read-only)"
 echo "  - $TARGET_REAL/comms/ is a git repo (initial commit made; credential pre-push hook active)"
 echo "Next: to transport comms history between boxes, wire a private remote deliberately:"
 echo "      git -C $TARGET_REAL/comms remote add origin <url>"

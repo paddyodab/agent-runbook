@@ -82,6 +82,12 @@ resolve_scaffold_source() {
   if [[ -f "$HERE/scaffold/new-enclosing-folder.sh" ]]; then
     SCAFFOLD="$HERE/scaffold/new-enclosing-folder.sh"
     SCAFFOLD_MODE="scaffold"
+  elif [[ -f "$HERE/new-enclosing-folder.sh" ]]; then
+    # installed copy (PATH-gated install at ~/.local/bin/new-enclosing-folder.sh):
+    # the installer refreshes it from the repo and refuses drift, so it IS the
+    # mirror source on a deployed box — old folders get current scripts too.
+    SCAFFOLD="$HERE/new-enclosing-folder.sh"
+    SCAFFOLD_MODE="scaffold"
   elif [[ -f "$COMMS/session-start.sh" ]]; then
     SCAFFOLD="$COMMS"
     SCAFFOLD_MODE="comms-tree"
@@ -99,13 +105,26 @@ if [[ "$SCAFFOLD_MODE" == "scaffold" ]]; then
   START_MARKER="$(awk '/cat > "\$TARGET\/comms\/session-start.sh"/ {print NR; exit}' "$SCAFFOLD")"
   END_MARKER="$(awk '/cat > "\$TARGET\/comms\/session-end.sh"/ {print NR; exit}' "$SCAFFOLD")"
   [[ -n "$START_MARKER" && -n "$END_MARKER" ]] || die "scaffold heredoc markers not found — scaffold format drift"
-  # extraction: from marker line +1 to the FIRST lone SCRIPT_EOF line after it
-  extract() { # <start-line>
+  # extraction: from marker line +1 to the FIRST lone terminator line after it.
+  # The terminator is per-heredoc (SCRIPT_EOF for session scripts, GLOW_EOF for
+  # glow-pane) — a fixed SCRIPT_EOF would over-extract glow-pane to end-of-file
+  # (caught by proof: 11289-byte copy instead of 2334).
+  extract() { # <start-line> <terminator>
     awk -v n="$1" 'NR>n { print }' "$SCAFFOLD" \
-      | awk 'BEGIN{done=0} !done && /^SCRIPT_EOF$/ {done=1; exit} !done { print }'
+      | awk -v t="$2" 'BEGIN{done=0} !done && $0 == t {done=1; exit} !done { print }'
   }
-  extract "$START_MARKER" > "$TMPDIR_M/session-start.sh"
-  extract "$END_MARKER" > "$TMPDIR_M/session-end.sh"
+  GLOW_MARKER="$(awk '/cat > "\$TARGET\/comms\/glow-pane.sh"/ {print NR; exit}' "$SCAFFOLD")"
+  [[ -n "$GLOW_MARKER" ]] || die "scaffold glow-pane heredoc marker not found — scaffold format drift"
+  extract "$GLOW_MARKER" "GLOW_EOF" > "$TMPDIR_M/glow-pane.sh"
+  [[ -s "$TMPDIR_M/glow-pane.sh" ]] || die "extracted glow-pane.sh is empty — scaffold format drift"
+  GLOW_REPO="${HERE}/glow-pane.sh"
+  [[ -f "$GLOW_REPO" ]] || GLOW_REPO="${SCAFFOLD%/*}/glow-pane.sh"
+  [[ -f "$GLOW_REPO" ]] || die "no repo glow-pane.sh next to the scaffold — cannot verify extraction"
+  cmp -s "$TMPDIR_M/glow-pane.sh" "$GLOW_REPO" \
+    || die "extracted glow-pane.sh differs from the repo's copy ($GLOW_REPO) — scaffold drift; refusing to install"
+  bash -n "$TMPDIR_M/glow-pane.sh" || die "extracted glow-pane.sh fails syntax check — scaffold drift; refusing to install"
+  extract "$START_MARKER" "SCRIPT_EOF" > "$TMPDIR_M/session-start.sh"
+  extract "$END_MARKER" "SCRIPT_EOF" > "$TMPDIR_M/session-end.sh"
   for f in session-start.sh session-end.sh; do
     [[ -s "$TMPDIR_M/$f" ]] || die "extracted $f is empty — scaffold format drift"
   done
@@ -122,6 +141,9 @@ else
   cp "$COMMS/session-start.sh" "$COMMS/session-end.sh" "$TMPDIR_M/"
   bash -n "$TMPDIR_M/session-start.sh" && bash -n "$TMPDIR_M/session-end.sh" \
     || die "comms-tree scripts fail syntax check — refusing"
+  # glow-pane in comms-tree mode: the tree's own copy is the newest source available;
+  # if absent there, the old folder simply doesn't get one (nothing newer to install).
+  if [[ -f "$COMMS/glow-pane.sh" ]]; then cp "$COMMS/glow-pane.sh" "$TMPDIR_M/"; fi
 fi
 # AGENTS.md refresh: the standing rules (incl. the two-workers/one-repo worktree rule)
 # live in the scaffold heredoc; an old folder's AGENTS.md drifts as the runbook evolves.
@@ -172,10 +194,11 @@ if [[ ! -f "$TEMPLATES_DIR/session-handoff.md" ]]; then
     die "$TEMPLATES_DIR missing and no scaffold source to stamp it from — clone a full comms (unit-1 scaffold commits templates/) or run from the repo tree"
   fi
 fi
-for f in session-start.sh session-end.sh; do
+for f in session-start.sh session-end.sh glow-pane.sh; do
+  [[ -f "$TMPDIR_M/$f" ]] || continue   # glow-pane may be absent in old comms-tree mode
   if cmp -s "$COMMS/$f" "$TMPDIR_M/$f"; then
     echo "comms/$f already current"
-  elif [[ "$SCAFFOLD_MODE" == "scaffold" ]]; then
+  elif [[ "$SCAFFOLD_MODE" == "scaffold" || "$f" == "glow-pane.sh" ]]; then
     cp "$TMPDIR_M/$f" "$COMMS/$f.new" && chmod +x "$COMMS/$f.new" && mv "$COMMS/$f.new" "$COMMS/$f"
     echo "comms/$f replaced with current (user-keyed) version"
   else

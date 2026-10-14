@@ -237,8 +237,36 @@ no node is special. Session boundaries are the only sync firing points.
   bash-3.2 (git provisioned per comms-git-01 precedent); scaffold mirror byte-parity
   (all protocol files + AGENTS.md modulo slug), scaffolded end-to-end notice proven.
   Evidence: `.evidence/preamble-01/`.
-- **NOT:** no session-end gating on preamble; no auto-linking machinery; no renaming
-  of historical intro.txt files; no comms-sync/artifacts-sync touching.
+
+### Unit herdr-pane-01 — herdr pane surfaces: preamble editor pane + glow viewer
+
+- **Problem:** the preamble road-test in `agent-runbook-next/comms` (live prototype,
+  2026-10-14) proved two herdr-pane capabilities the scaffold/installer don't ship:
+  (a) inside herdr, session-start should open the stamped preamble in an editor pane
+  so the operator types the ask instead of composing in a TUI; (b) any markdown
+  (assessments, mind notes, handoffs) should be renderable in a `glow:` pane.
+  Prototype proven live (pane list/process-info/idempotent/outside-herdr fail-soft).
+- **Outcome:** mirror contract — live comms is canonical, product repo embeds it:
+  - `scaffold/new-enclosing-folder.sh`: session-start heredoc gains the herdr
+    preamble-pane hook; comms/README heredoc gains the hook bullet; scaffold stamps
+    `comms/glow-pane.sh` (new heredoc, extracted from the live prototype); scaffold
+    now also creates `work/` (empty) — the edit-copies tier every enclosing folder
+    needs by convention.
+  - `glow-pane.sh` in runbook root, PATH-gated install (same refuse-fence class as
+    comms-sync/fresh-box/artifacts-sync), doctor dexec entry, uninstall line.
+  - `migrate-user-comms.sh`: refreshes `comms/glow-pane.sh` (session scripts already
+    covered) from the scaffold for old folders.
+  - runbook AGENTS block: mind-notes display line (glow-pane) — live
+    `~/.omp/agent/AGENTS.md` already carries it.
+- **Proof obligations:** junk-parent scaffold build → cmp ALL protocol files +
+  glow-pane.sh byte-identical (session-start hook present, work/ created);
+  lifecycle gate host + bash-3.2 green; glow-pane outside-herdr fallback renders
+  stdout; installer doctor honest on this box (drift is named, not silently green).
+- **NOT:** no auto-open of arbitrary files beyond preamble + explicit glow-pane.sh
+  invocation; no session-end changes; no herdr server management; no automatic
+  firing on the prose tier (glow-pane runs only when invoked); editor probe stays
+  vi/nvim fallback (no Windows editor list).
+- **Depends on:** nothing (prototype exists live; scaffold mirror is mechanical).
 
 ## Sequencing & lanes
 

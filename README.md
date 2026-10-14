@@ -70,6 +70,11 @@ artifacts-sync     — the objects tier: mirrors artifacts/ ↔ a wired target
                      fences (one-sided files refuse, naming an exact --force
                      recipe); remote/status/import/export; intentional firing
                      only; local-path mode needs no aws CLI (unit artifacts-sync-01)
+glow-pane.sh       — display any markdown in a herdr `glow: <label>` pane
+                     (`glow -p` pager) beside the calling pane; re-rendering
+                     the same file replaces its previous glow pane; outside
+                     herdr (or without glow) it renders to stdout (unit
+                     herdr-pane-01)
 sandbox-test.sh   — the proof: docker container + fresh HOME + machine install + pinned omp
 sbx-test.sh       — the same proof in a real Docker Sandbox microVM (sbx create shell)
 .evidence/        — numbered JSON artifacts + PROOF.md per proven unit

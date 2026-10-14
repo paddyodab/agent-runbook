@@ -27,7 +27,9 @@ evidence, source digests — write `mind/NNN-slug.md` instead: one topic per not
 numbered in the order you thought them, next to the conversation if a comms session
 folder exists (`comms/<user>/<YYYYMMDD>-<NN>/mind/`), else `.mind/` in the repo
 (gitignore it). Notes are the raw feed, not the record: durable conclusions get
-promoted into the session's artifacts/handoff.
+promoted into the session's artifacts/handoff. Display: `./comms/glow-pane.sh <file>`
+opens it rendered in a herdr `glow:` pane (agent-runbook convention); cite as
+`m:NNN`.
 
 **Eng playbooks (how engineering work runs).** Load the `eng-playbooks` skill before
 any engineering work (its triggers are any of: new app, existing repo, refactor, or
