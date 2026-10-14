@@ -1,0 +1,13 @@
+{
+  "arm": "01-guard-arms",
+  "when": "2026-10-14T19:35Z",
+  "fixture": "/tmp/pp-fix.ivtHoA/pp-fix (junk parent; fixed session-start.sh copied in, run inside real herdr env from agent pane wM:p1)",
+  "root_cause": "idempotency guard matched pane list for .label == 'preamble vi'; this herdr build does not surface labels in pane list/get (verified: 12 keys, no label field) — the filter matched nothing every time, so re-runs always split a new pane",
+  "arms": [
+    {"name": "ARM1 fresh-draft-opens-pane (unchanged behavior)", "before": 3, "after": 4, "outcome": "pass"},
+    {"name": "ARM2 duplicate-guard same draft (cwd-match, the real fix)", "before": 4, "after": 4, "outcome": "pass", "note": "label-based guard NEVER fired; two different draft folders get one pane each by design (each folder's ask)"},
+    {"name": "ARM3 sealed-resume-opens-nothing (operator rule)", "before": 3, "after": 3, "outcome": "pass", "note": "first ARM3 attempt ran the PRE-fix junk script (scaffold built before re-splice) — script-version trip, not a fix failure; re-run with fixed script passes"},
+    {"name": "live sealed session: session-start --resume on agent-runbook-next", "before": 3, "after": 3, "outcome": "pass"}
+  ],
+  "verdict": "pass"
+}
