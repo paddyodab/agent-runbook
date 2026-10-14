@@ -109,6 +109,7 @@ $CONVENTION
 - Repos from prior-art that a ticket needs changed are cloned to \`work/<repo>\` and edited there — never write into \`prior-art/\`. Honor operator instructions about folder layout as acceptance criteria.
 - Multi-agent parallel work happens in git worktrees of a built repo (\`git worktree add ../<repo>-lane-N\` from the built repo), not by writing into prior-art clones.
 - Session lifecycle: \`./comms/session-start.sh\` to begin or resume (\`--resume\` for same-day continuation), \`./comms/session-end.sh\` to seal the handoff at session end.
+- \`session-start.sh\` refreshes every \`prior-art/\` repo from origin at session start (fetch + ff-only pull, fail-soft): reference stays current. Dirty or diverged clones are named in the intro and left alone — resolving them is a deliberate act, never automatic.
 EOF
 
 cat > "$TARGET/comms/README.md" <<'PROTOCOL'
@@ -307,6 +308,11 @@ state stays traceable.
 The enclosing folder root holds the purpose README and the studied/built repos. `comms/`
 is its own small git repo (initialized by this scaffold at creation) so history can
 transport between boxes; the enclosing folder itself stays un-versioned.
+
+**Prior-art refresh (session-start):** every `prior-art/` repo is refreshed from origin
+when the session intro prints (fetch + ff-only pull, fail-soft) — references stay
+current. Dirty or diverged clones are named in the intro and left alone; resolving them
+is a deliberate act, never automatic.
 
 ## The comms repo (transport + credential gate)
 
@@ -584,6 +590,40 @@ herdr_preamble_pane_setup() {
 }
 herdr_preamble_pane_setup || true
 
+# --- prior-art refresh (fail-soft) ---------------------------------------------
+# Each prior-art/ repo is refreshed from origin (fetch + ff-only pull) so agent
+# references land on the latest state. Never fails the intro: a repo with no
+# remote, a diverged branch, or a dirty tree is named loud, then skipped —
+# prior-art is read-only reference; resolving drift there is a deliberate act.
+PA_STATUS=""
+if [[ -d prior-art ]]; then
+  for pa in prior-art/*/; do
+    [[ -d "$pa/.git" ]] || continue
+    pa_name="$(basename "$pa")"
+    pa_out="$(git -C "$pa" remote get-url origin 2>/dev/null || true)"
+    if [[ -z "$pa_out" ]]; then
+      PA_STATUS="$PA_STATUS
+  prior-art/$pa_name: no origin remote — left as-is"
+      continue
+    fi
+    pa_out="$(git -C "$pa" fetch origin --quiet 2>&1 || true)"
+    pa_status=$(git -C "$pa" status --porcelain 2>/dev/null | head -3 || true)
+    if [[ -n "$pa_status" ]]; then
+      PA_STATUS="$PA_STATUS
+  prior-art/$pa_name: DIRTY — fetch done, pull skipped (resolve/read deliberately)"
+      continue
+    fi
+    if git -C "$pa" pull --ff-only --quiet origin HEAD 2>/dev/null; then
+      pa_head="$(git -C "$pa" log --oneline -1 2>/dev/null)"
+      PA_STATUS="$PA_STATUS
+  prior-art/$pa_name: refreshed  ($pa_head)"
+    else
+      PA_STATUS="$PA_STATUS
+  prior-art/$pa_name: DIVERGED from origin — fetch done, ff-pull refused (resolve deliberately)"
+    fi
+  done
+fi
+
 # --- print the intro ------------------------------------------------------------
 NEWEST_ALL=""
 if (( ${#handoffs[@]} )); then NEWEST_ALL="$(REL_FROM_ENTRY "${handoffs[$(( ${#handoffs[@]} - 1 ))]}")"; fi
@@ -635,7 +675,7 @@ READ, in order (the only comms context at session start):
 $SECOND
 $PREAMBLE_NOTICE
 
-That's it. No other comms files, no prior-art, unless the handoff or the operator names them.
+That's it. No other comms files, no prior-art, unless the handoff or the operator names them.$PA_STATUS
 
 When the session ends, run: ./comms/session-end.sh
 EOF
@@ -1180,6 +1220,13 @@ directed, never scan, never write (a work copy of anything lives at the folder r
 work that changes a studied repo clones it to `work/<repo>` at the folder root and edits there.
 `artifacts/` holds reference material (PDFs, decks, exports): open only when the operator or a
 handoff names the exact file, never scan it, never commit it.
+
+**Branch policy: feature-branch work, never main.** Every change to a `work/<repo>`
+checkout lands on a feature branch (`feature/<unit-or-slug>`), created before the first
+edit; commit on the branch, never on `main`/`master`. Merge to main is the operator's
+deliberate act (push + PR, or an explicit local merge they request) — never an agent's
+own initiative. Other repos under `work/` may carry stricter branch rules; this is the
+floor, baked in at scaffold time.
 
 **Two workers, one repo — never edit the same checkout.** When more than one worker (human or
 agent) may touch a repo under `work/`, each worker FIRST creates their own git worktree from
