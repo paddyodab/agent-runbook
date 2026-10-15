@@ -25,6 +25,9 @@ skills/
                      workers return HANDOFF.md + evidence; never write sealed comms/
   turborepo/       — vendored vercel/turborepo skill (canary.4): the monorepo build
                      system, so monorepo work walks the doors with turbo knowledge
+  diagram-design/  — vendored diagram-design skill (45 visual types as HTML/SVG with
+                     an editorial design system; Mermaid/drawio/Excalidraw import +
+                     redraw): replaces stock mermaid-style output in chat visuals
 scaffold/
   new-enclosing-folder.sh — one idea, one folder: comms/ (a git repo from day one:
                      credential-scanning pre-push hook guards every push) +
@@ -95,6 +98,11 @@ sbx-test.sh       — the same proof in a real Docker Sandbox microVM (sbx creat
  then opens git worktrees + herdr panes, waits with `herdr agent wait`, re-proves via
  the gate, and returns one verdict. Lane workers leave `HANDOFF.md` + `.evidence/`;
  sealed `comms/` stays operator ↔ foreman only.
+- **Diagram-design** — 45 visual types (architecture, flowcharts, sequence, wardley,
+ …) as self-contained HTML/SVG with an editorial design system, plus a
+ Mermaid/draw.io/Excalidraw importer that extracts and *redraws* instead of
+ embedding the renderer's layout. Use it whenever a visual would teach more than
+ prose or a table; stock chat-rendered mermaid stays for quick inline sketches.
 
 Note on mind-note locations: inside an enclosing folder they land in the CURRENT
 session folder, `comms/<user>/<YYYYMMDD>-<NN>/mind/` (the multi-user layout);

@@ -1,0 +1,14 @@
+{
+  "artifact": "01-machine-install",
+  "unit": "vendored-skills-01",
+  "claim": "fresh-HOME machine install symlinks diagram-design into BOTH skill roots",
+  "date": "2026-10-15",
+  "method": "mktemp HOME + PATH=$HOME/.local/bin:$PATH + ./install.sh --machine (rc=0)",
+  "observed": {
+    "install_rc": 0,
+    "omp_skills_symlink": "~/.omp/agent/skills/diagram-design -> <repo>/skills/diagram-design",
+    "agents_skills_symlink": "~/.agents/skills/diagram-design -> <repo>/skills/diagram-design",
+    "machine_manifest_parse": "awk skills: block yields 5 skills incl diagram-design"
+  },
+  "verdict": "PASS"
+}

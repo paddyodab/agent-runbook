@@ -111,6 +111,7 @@ sbx exec "$NAME" bash -c '
   test -L "$HOME/.omp/agent/skills/eng-playbooks" && echo "   eng-playbooks symlink: OK"
   test -L "$HOME/.omp/agent/skills/fan-out-lanes" && echo "   fan-out-lanes symlink: OK"
   test -L "$HOME/.omp/agent/skills/turborepo" && echo "   turborepo symlink: OK"
+  test -L "$HOME/.omp/agent/skills/diagram-design" && echo "   diagram-design symlink: OK"
   grep -q "BLOCK:BEGIN:agent-runbook" "$HOME/.omp/agent/AGENTS.md" && echo "   AGENTS.md block: OK"
   test -x "$HOME/.local/bin/new-enclosing-folder.sh" && echo "   scaffold: OK"
   ./install.sh --doctor --machine | head -5

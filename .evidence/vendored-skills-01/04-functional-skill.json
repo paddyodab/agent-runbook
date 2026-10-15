@@ -1,0 +1,12 @@
+{
+  "artifact": "04-functional-skill",
+  "unit": "vendored-skills-01",
+  "claim": "vendored skill functions: self_check on shipped asset passes; mermaid extractor digests a sample",
+  "date": "2026-10-15",
+  "method": "python3 skills/diagram-design/scripts/self_check.py assets/example-wardley.html; mermaid_extract.py on a 4-node sample",
+  "observed": {
+    "self_check": "OK skills/diagram-design/assets/example-wardley.html",
+    "mermaid_extract": "1 diagram(s): flowchart (4n/3e), budget ok, rc=0"
+  },
+  "verdict": "PASS"
+}
