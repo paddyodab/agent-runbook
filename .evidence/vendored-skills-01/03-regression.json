@@ -1,0 +1,12 @@
+{
+  "artifact": "03-regression",
+  "unit": "vendored-skills-01",
+  "claim": "lifecycle gate green after edits; bash-3.2 portability of touched scripts",
+  "date": "2026-10-15",
+  "method": "./comms-lifecycle-test.sh <live enclosing folder>; docker bash:3.2 bash -n on edited scripts",
+  "observed": {
+    "lifecycle_gate": "32 pass, 0 fail",
+    "bash32_syntax": "install.sh sandbox-test.sh sbx-test.sh: bash -n clean under bash 3.2 docker"
+  },
+  "verdict": "PASS"
+}

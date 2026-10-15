@@ -39,8 +39,8 @@ docker run -d --name "$NAME" \
 docker exec "$NAME" bash -c '
   set -eu
   apt-get update -qq >/dev/null
-  apt-get install -y -qq git curl ca-certificates gh glow >/dev/null 2>&1
-  echo "   ready: git $(git --version | awk "{print \$3}"), gh $(gh --version | head -1 | awk "{print \$3}"), glow $(glow --version 2>&1 | head -1)"
+  apt-get install -y -qq git curl ca-certificates gh glow sqlite3 jq python3 >/dev/null 2>&1
+  echo "   ready: git $(git --version | awk "{print \$3}"), gh $(gh --version | head -1 | awk "{print \$3}"), glow $(glow --version 2>&1 | head -1), sqlite3 $(sqlite3 --version | awk "{print \$1}"), jq $(jq --version), python3 $(python3 --version | awk "{print \$2}")"
 '
 
 echo "== 2. install.sh --machine in a virgin HOME"
@@ -54,6 +54,7 @@ docker exec "$NAME" bash -c '
   ./install.sh --machine 2>&1 | tail -3
   test -L "$HOME/.omp/agent/skills/bro-mode" && echo "   bro-mode symlink: OK"
   test -L "$HOME/.omp/agent/skills/turborepo" && echo "   turborepo symlink: OK"
+  test -L "$HOME/.omp/agent/skills/diagram-design" && echo "   diagram-design symlink: OK"
   grep -q "BLOCK:BEGIN:agent-runbook" "$HOME/.omp/agent/AGENTS.md" && echo "   AGENTS.md block: OK"
   test -x "$HOME/.local/bin/new-enclosing-folder.sh" && echo "   scaffold: OK"
   ./install.sh --doctor --machine | head -3

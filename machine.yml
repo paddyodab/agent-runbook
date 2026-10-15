@@ -31,6 +31,9 @@ machine:
     - name: herdr                   # mind-pane drill-in (optional, warn only)
       check: herdr --help
       optional: true
+    - name: python3                 # diagram-design skill verify scripts (required for that skill)
+      check: python3 --version
+      optional: true
     - name: aws                     # artifacts-sync s3 mode (optional; local-path mode works without)
       check: aws --version
       optional: true
@@ -46,6 +49,8 @@ skills:
     source: skills/fan-out-lanes
   - name: turborepo                 # vendored from vercel/turborepo @ canary.4; see skills/turborepo header
     source: skills/turborepo
+  - name: diagram-design            # vendored from the diagram-design plugin repo; see skills/diagram-design/SKILL.md header
+    source: skills/diagram-design
 
 # Ticketing adapter slot. Exactly ONE active adapter per machine profile; the
 # runbook treats intake as workplace-owned, not repo-owned. An adapter = skill(s)

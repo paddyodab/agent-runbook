@@ -399,6 +399,38 @@ no node is special. Session boundaries are the only sync firing points.
   reminder-hook unit queued after overwatch-01; advisor surface = option 2
   (throwaway omp advisory session, operator-invoked) for the LATER advisor unit.
 
+### Unit vendored-skills-01 — diagram-design vendored + wired (20261015-01)
+
+- **Problem:** the operator's diagrams need editorial quality beyond stock
+  chat-rendered mermaid; the diagram-design skill (45 visual types, HTML/SVG,
+  mermaid/drawio/Excalidraw extract-and-redraw) lives outside the runbook, so
+  a fresh box does not install it.
+- **Outcome:** the skill is vendored at `skills/diagram-design/` (provenance
+  header, as with turborepo), listed in machine.yml + classic SKILL_DIRS,
+  symlinked to both skill roots by install.sh, asserted by sandbox-test.sh +
+  sbx-test.sh, documented in README + machine.md. Optional dep `python3`
+  added to machine.yml (its verify/self_check scripts; the skill draws
+  without it) — the vendor-and-wire pattern now has a second instance, which
+  is the threshold for extracting the wiring recipe if a third arrives.
+- **Proof obligations:**
+  - fresh-HOME machine install: `diagram-design` symlink lands in BOTH roots
+  - sandbox-test.sh (docker debian): machine install green with the new
+    symlink assertion (also required adding sqlite3/jq/python3 to the
+    container bootstrap — overwatch-01's required manifest deps were never
+    installed by the docker proof; refusal proved the gate, fix proved the
+    install)
+  - comms lifecycle gate 32/32 host + bash 3.2 docker syntax check on edited
+    scripts
+  - functional: skill's own `self_check.py` passes on a shipped asset;
+    `mermaid_extract.py` returns a digest on a sample
+- **Contexts touched:** skills/diagram-design (new, vendored), machine.yml,
+  install.sh, sandbox-test.sh, sbx-test.sh, README.md, machine.md, ROADMAP.md
+- **NOT:** style-guide.md token edits (defaults ship as-is; profiles flow is
+  the skill's own), AGENTS.md standing-behavior mentions (skills load on
+  trigger, no block change), kit/omp regen (until next kit refresh), sbx
+  live smoke (same steps as sbx-test.sh, asserted there)
+- **Done when:** proofs above green; committed on a feature branch.
+
 ## Sequencing & lanes
 
 1 → 2 → (3 ∥ 4) → D; unit 5 (fresh-box, 20260930) is independent —
