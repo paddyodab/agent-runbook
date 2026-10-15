@@ -1,7 +1,7 @@
 # Vendored into agent-runbook (source of truth). Provenance: the diagram-design
-# skill from the diagram-design plugin repo, studied in prior-art/ (that copy is a
-# frozen study snapshot). Update by re-vendoring here, then re-run install.sh —
-# never edit the installed symlink target from prior-art.
+# skill (v2.6) from the diagram-design plugin repo, studied in prior-art/ (that
+# copy is a frozen study snapshot). Update by re-vendoring here, then re-run
+# install.sh — never edit the installed symlink target from prior-art.
 ---
 name: diagram-design
 description: Create branded architecture, architecture delta, IT current-state, flowchart, sequence, state machine, ER/data model, timeline, swimlane, quadrant, radar/spider, polar chart (polar/radial lollipop), loop/flywheel, nested, tree, org chart, layer stack, exploded axonometric, axonometric plan, Venn, pyramid/funnel, treemap and marimekko, heatmap, bar and dumbbell, waterfall, line (slopegraph, ridgeline, streamgraph, bump), Gantt and scatter charts (bubble, beeswarm), high-level, process, medallion, data flow, DP integration, DP security matrix, Sankey, fishbone, Wardley map, kanban, user journey, service blueprint, deployment, dependency graph, UML class, story map, or database schema diagrams as HTML/SVG/PNG, with .drawio, Mermaid, and .excalidraw import, plus lifecycle phase maps, block decomposition trees, and onboarding guidance.
