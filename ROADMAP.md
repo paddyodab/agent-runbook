@@ -431,6 +431,53 @@ no node is special. Session boundaries are the only sync firing points.
   live smoke (same steps as sbx-test.sh, asserted there)
 - **Done when:** proofs above green; committed on a feature branch.
 
+### Unit scaffold-gitignore-01 — comms/.gitignore heredoc gains the overwatch-index rule (20261015-02)
+
+- **Problem:** the mirror contract failed in the product's direction: this
+  enclosing folder's live `comms/.gitignore` carried the
+  `.overwatch-index.jsonl` rule since overwatch-01, but the scaffold's
+  GITIGNORE_EOF heredoc did not — every NEWLY scaffolded folder would have
+  written the derived, per-node index into comms transport history on its
+  first session-start rebuild (pointers never belong in history per the
+  overwatch fence).
+- **Outcome:** scaffold heredoc gains the ignore line (3 lines, same diff
+  rule as vendored-skills-01's dep lesson: when a unit adds state under
+  comms/, its ignore rides the same diff). Discovered by the operator's
+  two-way template parity ask; proven by junk scaffold builds (host bash 5 +
+  docker bash:3.2) byte-equal to the live file, comms lifecycle gate 32/32.
+- **Proof obligations:** junk scaffold builds on both interpreters →
+  `cmp` comms/.gitignore vs live = identical; lifecycle gate 32/32;
+  reference clone restored pristine (machine-tier source never carries a
+  work-copy state).
+- **Contexts touched:** scaffold/new-enclosing-folder.sh only.
+- **NOT:** no gitignore changes to the live comms (already correct), no
+  overwatch script changes, no other heredoc edits.
+- **Done when:** merged via PR #10 (`33905c6` → main @ `33905c6`/`ec7beba`).
+  No evidence dir — the parity cmp outputs are the proof surface (live
+  build artifacts); recorded in comms/patdabney/20261015-02.
+
+### Unit gate-herdr-isolation-01 — lifecycle gate strips herdr env + opts out of the preamble pane (20261015-02, post-seal delta)
+
+- **Problem:** the gate runs inside a herdr-managed agent pane, so
+  `HERDR_ENV=1` + `HERDR_PANE_ID` leak into EVERY fixture session-start
+  invocation; session-start's preamble-pane hook then opens a REAL nvim
+  pane in the operator's workspace per fake user per start — pointing at
+  /tmp fixture paths the EXIT trap deletes (16 dead panes from 2 gate runs).
+- **Outcome:** `run()` in comms-lifecycle-test.sh `env -u`'s the herdr
+  identity markers (HERDR_ENV/HERDR_PANE_ID/HERDR_TAB_ID/HERDR_WORKSPACE_ID)
+  AND sets the hook's own opt-out (`COMMS_NO_PREAMBLE_PANE=1`)
+  so a future hook variant keyed on only one marker still cannot split panes.
+  Found live in agent-runbook-next session 20261015-02 (post-seal delta).
+- **Proof obligations:** gate 32/32 with pane count unchanged, proven live
+  in the herdr session; gate honesty preserved (env strip is isolation, not
+  assertion change).
+- **Contexts touched:** comms-lifecycle-test.sh (run() only).
+- **NOT:** no session-start/session-end changes (the hook's opt-out already
+  covers manual runs), no new assertions beyond the isolation preamble, no
+  herdr pane API changes.
+- **Done when:** merged via PR #11 (main @ `ec7beba`); regression duty this
+  unit and the next re-prove the gate green both interpreters.
+
 ## Sequencing & lanes
 
 1 → 2 → (3 ∥ 4) → D; unit 5 (fresh-box, 20260930) is independent —
@@ -439,7 +486,10 @@ seed unit (hand-done inline;
 gate re-proves the comms priors). Units 2 and 3 touch disjoint files →
 parallelizable lanes; 4 slots after 2's shape settles (doctor needs the
 wrapper's semantics). verify-<app> for this repo = comms-lifecycle-test.sh
-(already forged) + the new assertions; no new gate needed.
+(already forged) + the new assertions; no new gate needed. Post-BUILD
+one-line units (scaffold-gitignore-01, gate-herdr-isolation-01, 20261015)
+landed via PRs #10/#11; regression duty (gate 32/32) re-proven on merged
+main the same day.
 
 ## Standing fences (carried)
 
