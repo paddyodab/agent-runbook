@@ -1,0 +1,710 @@
+#!/usr/bin/env bash
+# overwatch — ask-answering surface over the session↔comms↔commit tie graph.
+#
+# NOT an agent, daemon, watcher or cron. Fires only when invoked (plus one
+# fail-soft rebuild at session-start, the protocol's only sync firing points).
+# Everything is read-only except ONE path: comms/.overwatch-index.jsonl — a
+# derived, gitignored, per-node index (JSONL, pointers only; rebuilt at will).
+#
+# Tie model (all derived, never guessed):
+#   cwd of an omp session record → enclosing folder (exact path match)
+#   handoff slot-0 "session id:" → comms folder (authoritative when stamped)
+#   otherwise: transcript window ∩ comms-folder evidence epochs
+#     (folder git-commit dates in the comms repo + folder mtime; ambiguous
+#      overlaps keep BOTH candidates and mark ambiguous — never a silent pick)
+#   work-repo commits: author-date inside the transcript window (git log --all)
+#   titles/recaps: joined read-only from ~/.omp/agent/history.db
+#
+# Deps: git, jq, sqlite3 (required); rg optional (related search degrades).
+# bash 3.2-safe. Read-only on every source; sqlite opened -readonly (copies to
+# tmp on lock failure).
+
+set -u
+
+PROG="$(basename "$0")"
+usage() {
+  cat >&2 <<USAGE
+$PROG — query the session↔comms↔commit tie graph (read-only)
+
+usage:
+  $PROG rebuild [<enclosing-folder>]   rebuild comms/.overwatch-index.jsonl
+  $PROG status                         index state + counts (read-only)
+  $PROG why <sha|path|symbol>          commits → sessions → comms folder + ask
+  $PROG turns <uuid> [--all]           print a transcript's turns (stdout only)
+  $PROG related <text>                 ranked search: comms, titles, commits, code
+  $PROG tie <session-uuid|comms-folder>  one session's/folder's full footprint
+
+The index is derived + gitignored; sources stay truth. Pointers only — no
+transcript/comms prose ever lands in the index or output files.
+USAGE
+  exit 2
+}
+
+[ $# -ge 1 ] || usage
+CMD="$1"; shift
+
+for dep in git jq sqlite3; do
+  command -v "$dep" >/dev/null 2>&1 || { echo "$PROG: required dependency missing: $dep" >&2; exit 2; }
+done
+case "$CMD" in
+  rebuild|status|why|turns|related|tie) ;;
+  *) usage ;;
+esac
+
+# ---------------------------------------------------------------- helpers ----
+
+# resolve enclosing folder: dir containing comms/README.md; walk up from the
+# given dir (or PWD). Declared discovery: nothing beyond this boundary.
+resolve_root() {
+  local d start="${1:-}"
+  if [ -n "$start" ]; then
+    d="$(cd "$start" 2>/dev/null && pwd)" || return 1
+  else
+    d="$PWD"
+  fi
+  while :; do
+    if [ -f "$d/comms/README.md" ]; then
+      printf '%s' "$d"
+      return 0
+    fi
+    [ "$d" = "/" ] && return 1
+    d="$(dirname "$d")"
+  done
+}
+
+die_root() {
+  echo "$PROG: no enclosing folder found (looked for comms/README.md walking up from ${1:-$PWD})" >&2
+  echo "  pass one explicitly: $PROG $CMD /path/to/enclosing-folder" >&2
+  exit 1
+}
+
+# read history.db tables as JSON. -readonly first; on failure copy db (+wal)
+# to tmp and read the copy. Never mutates the db.
+sqlite_json() { # table-select-sql outfile
+  local sql="$1" out="$2" db="${HOME}/.omp/agent/history.db"
+  [ -f "$db" ] || { printf '[]\n' > "$out"; return 0; }
+  if sqlite3 -json -readonly "$db" "$sql" > "$out" 2>/dev/null && [ -s "$out" ]; then
+    return 0
+  fi
+  cp "$db" "$out.db" 2>/dev/null || { printf '[]\n' > "$out"; return 0; }
+  [ -f "$db-wal" ] && cp "$db-wal" "$out.db-wal" 2>/dev/null
+  [ -f "$db-shm" ] && cp "$db-shm" "$out.db-shm" 2>/dev/null
+  sqlite3 -json "$out.db" "$sql" > "$out" 2>/dev/null || printf '[]\n' > "$out"
+  rm -f "$out.db" "$out.db-wal" "$out.db-shm"
+}
+
+# first ≤N content lines of a folder's preamble.txt (operator ask body):
+# skips blank lines, "#" comments, and <!-- HTML comment blocks (template boilerplate).
+preamble_excerpt() { # <folder-rel-path> <max-lines>
+  local f="$ROOT/$1/preamble.txt" n="${2:-6}" c=0 line incomment=0
+  [ -f "$f" ] || return 0
+  while IFS= read -r line; do
+    if [ "$incomment" = 1 ]; then
+      case "$line" in *'-->'*) incomment=0 ;; esac
+      continue
+    fi
+    case "$line" in
+      '<!--'*) incomment=1; continue ;;
+      '#'*) continue ;;
+      *[![:space:]]*) ;;
+      *) continue ;;
+    esac
+    printf '      | %s\n' "$(printf '%s' "$line" | cut -c1-200)"
+    c=$((c + 1))
+    [ "$c" -ge "$n" ] && break
+  done < "$f"
+}
+
+index_path() { printf '%s/comms/.overwatch-index.jsonl' "$ROOT"; }
+
+# session lines whose window contains an epoch (tsv: uuid title slug cwd ws we)
+sessions_for_epoch() {
+  jq -r --arg e "$1" -s '
+    def ep: if type == "string" and test("\\.[0-9]+Z$") then sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601 else null end;
+    . as $rows
+    | [ $rows[]
+        | (.window_start // "") as $ws | (.window_end // "") as $we
+        | [ ($ws | ep), ($we | ep), ($e | tonumber? // 0), .uuid, (.title // "—"), .cwd_slug, .cwd, $ws, $we ] ]
+    | .[]
+    | select(.[0] != null and .[1] != null and (.[0] <= .[2] and .[2] <= .[1]))
+    | [ .[3], .[4], .[5], .[6], .[7], .[8] ] | @tsv
+  ' "$(index_path)"
+}
+
+list_comms_folders() {
+  local d b
+  for d in "$ROOT"/comms/*/*/; do
+    [ -d "$d" ] || continue
+    b="$(basename "$(dirname "$d")")/$(basename "$d")"
+    case "$b" in
+      */[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9]) printf '%s\n' "comms/$b" ;;
+    esac
+  done
+}
+
+print_pointers() { # <folder-rel-path>
+  local f="$ROOT/$1" p
+  [ -f "$f/session-handoff.md" ] && printf '        pointer: %s/session-handoff.md\n' "$1"
+  [ -f "$f/conversation.md" ] && printf '        pointer: %s/conversation.md\n' "$1"
+  [ -f "$f/preamble.txt" ] && printf '        pointer: %s/preamble.txt (the ask)\n' "$1"
+  if [ -d "$f/mind" ]; then
+    for p in "$f"/mind/*; do
+      [ -f "$p" ] && printf '        pointer: %s/mind/%s\n' "$1" "$(basename "$p")"
+    done
+  fi
+}
+
+# tsv: uuid title cwd_slug cwd window_start window_end
+print_session_block() {
+  local uuid title slug ws we
+  IFS="$TAB" read -r uuid title slug _cwd ws we <<EOF2
+$1
+EOF2
+  printf '      session: %s\n' "$title"
+  printf '        uuid: %s   window: %s → %s\n' "$uuid" "$ws" "$we"
+  printf '        transcript: %s/.omp/agent/sessions/%s/*_%s.jsonl\n' "$HOME" "$slug" "$uuid"
+  printf '        comms folders:\n'
+  jq -r --arg u "$uuid" 'select(.uuid == $u) | .comms_folders[]? | "        " + .path + "  [" + .tie + (if (.ambiguous? == true) then "/ambiguous" else "" end) + "]"' "$(index_path)"
+  jq -r --arg u "$uuid" 'select(.uuid == $u) | .comms_folders[]?.path // empty' "$(index_path)" | while IFS= read -r rel; do
+    echo "        --- $rel — preamble excerpt (first lines, operator's own words):"
+    preamble_excerpt "$rel" 4
+    print_pointers "$rel"
+  done
+}
+
+# ------------------------------------------------------------------ rebuild --
+
+cmd_rebuild() {
+  local arg_root="${1:-}"
+  ROOT="$(resolve_root "$arg_root")" || die_root "$arg_root"
+  [ -n "$ROOT" ] || die_root "$arg_root"
+  local idx idxtmp tmp
+  idx="$(index_path)"; idxtmp="$idx.new"
+  tmp="$(mktemp -d "${TMPDIR:-/tmp}/overwatch-rebuild.XXXXXX")"
+  trap 'rm -rf "$tmp"' RETURN
+
+  # --- sessions: one JSON object per omp transcript under $HOME/.omp/... ---
+  local omps="${HOME}/.omp/agent/sessions" slug j
+  : > "$tmp/sessions.jsonl"
+  if [ -d "$omps" ]; then
+    for slug in "$omps"/*/; do
+      [ -d "$slug" ] || continue
+      for j in "$slug"*.jsonl; do
+        [ -f "$j" ] || continue
+        jq -rs --arg slug "$(basename "$slug")" '
+          (map(select(.type? == "session")) | first) as $S
+          | ([ .[] | ((.timestamp? // "") as $a | (if $a != "" then $a
+                     else ((.updatedAt? // "") as $b | if $b != "" then $b else empty end) end)) ] | max) as $we
+          | select($S != null and (($S.id? // "") != ""))
+          | { uuid: $S.id, cwd: ($S.cwd? // ""), ws: ($S.timestamp? // ""),
+              we: (if ($we // "") == "" then ($S.timestamp? // "") else $we end),
+              slug: $slug }
+        ' "$j" | jq -c . >> "$tmp/sessions.jsonl"
+      done
+    done
+  fi
+
+  # --- titles + recaps from history.db (read-only; never written) ---
+  sqlite_json "SELECT session_id AS id, title FROM session_titles ORDER BY session_id" "$tmp/titles.json"
+  jq -e . "$tmp/titles.json" >/dev/null 2>&1 || printf '[]\n' > "$tmp/titles.json"
+  sqlite_json "SELECT session_id AS id, recap AS text, created_at AS ts FROM session_recaps ORDER BY session_id, ts" "$tmp/recaps.json"
+  jq -e . "$tmp/recaps.json" >/dev/null 2>&1 || printf '[]\n' > "$tmp/recaps.json"
+
+  # --- comms folders: stamps (handoff slot-0 uuid) + evidence epochs ---
+  local folders f hand
+  folders="$(list_comms_folders)"
+  : > "$tmp/stamps.tsv"; : > "$tmp/epochs.tsv"
+  for f in $folders; do
+    hand="$ROOT/$f/session-handoff.md"
+    if [ -f "$hand" ]; then
+      grep -Eo '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' "$hand" 2>/dev/null \
+        | sort -u | while IFS= read -r u; do printf '%s\t%s\n' "$f" "$u"; done >> "$tmp/stamps.tsv"
+    fi
+    # folder mtime as standing evidence
+    printf '%s\t%s\tmtime\n' "$f" "$(stat -c %Y "$ROOT/$f" 2>/dev/null || echo 0)" >> "$tmp/epochs.tsv"
+  done
+  if [ -d "$ROOT/comms/.git" ]; then
+    git -C "$ROOT/comms" log --all --name-only --format='C%x09%at' 2>/dev/null \
+      | awk -F'\t' '
+          $1 == "C"          { at = $2; next }
+          $0 ~ /^comms\//    { n = split($0, p, "/")
+                               if (n >= 3) print p[1] "/" p[2] "/" p[3] "\t" at "\tcommit" }
+        ' >> "$tmp/epochs.tsv"
+  fi
+
+  # --- work repos: all commits on all refs (repo \t sha \t at \t h \t an \t aI \t subject) ---
+  : > "$tmp/work.tsv"
+  local r rp
+  for r in "$ROOT"/work/*/; do
+    [ -d "$r" ] || continue
+    [ -d "$r/.git" ] || [ -f "$r/.git" ] || continue
+    rp="work/$(basename "$r")"
+    git -C "$r" log --all --format='%H%x09%at%x09%h%x09%an%x09%aI%x09%s' 2>/dev/null \
+      | awk -v repo="$rp" 'BEGIN{OFS="\t"} {print repo, $0}' >> "$tmp/work.tsv"
+  done
+
+  # --- join + emit the index ---
+  cat > "$tmp/join.jq" <<'JQ'
+def ep: if type == "string" then sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601 else . end;
+def tsv: split("\n") | map(select(length > 0)) | map(split("\t"));
+def json_encode: tostring;
+($root) as $root
+| $s as $sessions
+| ($sessions | map(select(.cwd == $root))) as $S
+| ($T[0] | map({key: .id, value: .title}) | from_entries) as $T
+| ($R[0] | group_by(.id) | map({key: .[0].id, value: (map(.text))}) | from_entries) as $R
+| ($stamps | tsv | map({folder: .[0], uuid: .[1]})) as $ST
+| ($epochs | tsv | map({folder: .[0], epoch: (.[1] | tonumber? // 0), src: .[2]})) as $E
+| ($work | tsv | map({repo: .[0], sha: .[1], at: (.[2] | tonumber? // 0), h: .[3],
+                      an: .[4], date: .[5], subject: (.[6:] | join("\t"))})) as $W
+| ([ $S[] | {u: .uuid, t0: (.ws | ep), t1: (.we | ep)} ]) as $WINS
+| ([ $E[] | .epoch ] | unique
+   | map(. as $e | { e: $e, sids: [ $WINS[] | select(.t0 <= $e and $e <= .t1) | .u ] })) as $mult
+| $S
+| sort_by(.ws)
+| .[]
+| . as $cur
+    | ($T[$cur.uuid] // null) as $title
+    | ([ $R[$cur.uuid] // [] | .[] ]) as $recs
+    | ($cur.ws | ep) as $t0
+    | ($cur.we | ep) as $t1
+    | ([ $ST[] | select(.uuid == $cur.uuid) | .folder ] | unique) as $stamped
+    | ([ $E[] | select(.epoch >= $t0 and .epoch <= $t1) | .folder ] | unique) as $evf
+    | ([ $evf[] | select(. as $f | $stamped | index($f) | not) ]) as $winf
+    | ([ $stamped[]
+         | { path: ., tie: "stamp", ambiguous: false } ]
+       + [ $winf[]
+           | . as $f
+           | { path: $f, tie: "window",
+               ambiguous: (([ $E[]
+                 | select(.folder == $f and (.epoch >= $t0) and (.epoch <= $t1))
+                 | .epoch as $e
+                 | ([ $mult[] | select(.e == $e) | .sids | length ] | max // 0)
+               ] | max // 0) > 1) } ])
+      as $folders
+    | ([ $W[] | select(.at >= $t0 and .at <= $t1) ]
+       | group_by(.repo)
+       | map({ repo: .[0].repo,
+               commits: map({ sha: .sha, short: .h, date: .date, author: .an,
+                              subject: .subject }) }))
+      as $repos
+    | { uuid: $cur.uuid, window_start: $cur.ws, window_end: $cur.we,
+        cwd_slug: $cur.slug, cwd: $cur.cwd, title: $title, recaps: $recs,
+        comms_folders: $folders, work_repos: $repos }
+    | json_encode
+JQ
+  jq -n -r --arg root "$ROOT" \
+     --slurpfile s "$tmp/sessions.jsonl" \
+     --slurpfile T "$tmp/titles.json" \
+     --slurpfile R "$tmp/recaps.json" \
+     --rawfile stamps "$tmp/stamps.tsv" \
+     --rawfile epochs "$tmp/epochs.tsv" \
+     --rawfile work "$tmp/work.tsv" \
+     -f "$tmp/join.jq" > "$tmp/index.jsonl" 2>"$tmp/join.err" || {
+    echo "$PROG: rebuild join failed:" >&2; cat "$tmp/join.err" >&2; exit 1; }
+
+  # validate every line parses before replacing the old index
+  if [ -s "$tmp/index.jsonl" ]; then
+    jq -c . "$tmp/index.jsonl" >/dev/null 2>&1 \
+      || { echo "$PROG: internal: emitted index lines failed JSON validation; old index kept" >&2; exit 1; }
+  fi
+  mv "$tmp/index.jsonl" "$idxtmp" && mv "$idxtmp" "$idx"
+
+  # gitignore the index (derived data, never canonical)
+  local gi="$ROOT/comms/.gitignore"
+  touch "$gi"
+  grep -qs '^\.overwatch-index\.jsonl$' "$gi" \
+    || printf '\n# overwatch derived index (per-node; never canonical — rebuild anytime)\n.overwatch-index.jsonl\n' >> "$gi"
+
+  local ns nc nstamp nwin ncomm
+  ns="$(wc -l < "$idx" | tr -d ' ')"
+  nc="$(jq -r '[.comms_folders[]? | .path] | unique | length' "$idx" 2>/dev/null | awk '{s+=$1} END{print s+0}')"
+  nstamp="$(jq -r '[.comms_folders[]? | select(.tie == "stamp")] | length' "$idx" 2>/dev/null | awk '{s+=$1} END{print s+0}')"
+  nwin="$(jq -r '[.comms_folders[]? | select(.tie == "window")] | length' "$idx" 2>/dev/null | awk '{s+=$1} END{print s+0}')"
+  ncomm="$(jq -r '[.work_repos[]? | .commits[]?] | length' "$idx" 2>/dev/null | awk '{s+=$1} END{print s+0}')"
+  printf 'index: %s/sessions %s/comms-folders (%s stamp / %s window) %s/commit-rows%s\n' \
+    "$ns" "$nc" "$nstamp" "$nwin" "$ncomm" "${ROOT:+ }"
+  printf 'overwatch: %s sessions, %s comms folders, %s commit rows\n' "$ns" "$nc" "$ncomm"
+}
+
+# ------------------------------------------------------------------- status --
+
+cmd_status() {
+  local arg_root="${1:-}"
+  ROOT="$(resolve_root "$arg_root")" || die_root "$arg_root"
+  [ -n "$ROOT" ] || die_root "$arg_root"
+  local idx; idx="$(index_path)"
+  echo "overwatch status — $ROOT"
+  if [ ! -f "$idx" ]; then
+    echo "  index: MISSING ($idx)"
+    echo "  run: overwatch rebuild $ROOT"
+    return 0
+  fi
+  local imt ns ncstamped ncwin namb ncomm nrepo nrec ntitle
+  imt="$(stat -c %Y "$idx")"
+  ns="$(wc -l < "$idx" | tr -d ' ')"
+  ncstamped="$(jq -r '[.comms_folders[]? | select(.tie == "stamp")] | length' "$idx" | awk '{s+=$1} END{print s+0}')"
+  ncwin="$(jq -r '[.comms_folders[]? | select(.tie == "window")] | length' "$idx" | awk '{s+=$1} END{print s+0}')"
+  namb="$(jq -r '[.comms_folders[]? | select(.ambiguous == true)] | length' "$idx" | awk '{s+=$1} END{print s+0}')"
+  ncomm="$(jq -r '[.work_repos[]? | .commits[]?] | length' "$idx" | awk '{s+=$1} END{print s+0}')"
+  nrepo="$(jq -r '[.work_repos[]? | .repo] | unique | length' "$idx" | awk '{s+=$1} END{print s+0}')"
+  nrec="$(jq -r '[.recaps[]?] | length' "$idx" | awk '{s+=$1} END{print s+0}')"
+  ntitle="$(jq -r '[.title? | select(. != null and . != "")] | length' "$idx" | awk '{s+=$1} END{print s+0}')"
+  echo "  index: $idx"
+  echo "  built: $(stat -c %y "$idx" 2>/dev/null | cut -d. -f1)"
+  echo "  sessions indexed: $ns (titled: $ntitle, recaps: $nrec)"
+  echo "  comms ties: $ncstamped stamped / $ncwin window-derived (ambiguous flags: $namb)"
+  echo "  work commits in windows: $ncomm across $nrepo repo(s)"
+  local newest=0 d
+  for d in "$ROOT"/comms/*/*/; do
+    [ -d "$d" ] || continue
+    [ "$(stat -c %Y "$d" 2>/dev/null || echo 0)" -gt "$newest" ] && newest="$(stat -c %Y "$d")"
+  done
+  [ -d "$HOME/.omp/agent/sessions" ] && {
+    for d in "$HOME"/.omp/agent/sessions/*/; do
+      [ "$(stat -c %Y "$d" 2>/dev/null || echo 0)" -gt "$newest" ] && newest="$(stat -c %Y "$d")"
+    done
+  }
+  if [ "$newest" -gt "$imt" ]; then
+    echo "  STALE: sources changed after the index was built — run: overwatch rebuild $ROOT"
+  else
+    echo "  fresh: no source mtime newer than the index"
+  fi
+  return 0
+}
+
+# ---------------------------------------------------------------------- why --
+
+# collect (repo|sha|at|h|an|aI|subject) hits for a path or -S symbol across work
+# repos (+ comms repo for paths). Printed as TSV on stdout.
+log_hits() { # <path|-S sym> <mode: path|symbol>
+  local what="$1" mode="$2" r rp
+  for r in "$ROOT"/work/*/; do
+    [ -d "$r" ] || continue
+    { [ -d "$r/.git" ] || [ -f "$r/.git" ]; } || continue
+    rp="work/$(basename "$r")"
+    if [ "$mode" = "path" ]; then
+      git -C "$r" log --all --format='%H%x09%at%x09%h%x09%an%x09%aI%x09%s' -- "$what" 2>/dev/null
+    else
+      git -C "$r" log --all -S"$what" --format='%H%x09%at%x09%h%x09%an%x09%aI%x09%s' 2>/dev/null
+    fi | awk -v repo="$rp" 'BEGIN{OFS="\t"} {print repo, $0}'
+  done
+  if [ "$mode" = "path" ] && [ -d "$ROOT/comms/.git" ]; then
+    git -C "$ROOT/comms" log --all --format='%H%x09%at%x09%h%x09%an%x09%aI%x09%s' -- "$what" 2>/dev/null \
+      | awk 'BEGIN{OFS="\t"} {print "comms", $0}'
+  fi
+}
+
+cmd_why() {
+  [ $# -ge 1 ] || usage
+  # optional <enclosing-folder> second; query arg is LAST
+  local q="${*: -1}"
+  [ $# -le 2 ] || usage
+  local arg_root=""
+  if [ $# -eq 2 ]; then arg_root="$1"; fi
+  ROOT="$(resolve_root "$arg_root")" || die_root "$arg_root"
+  [ -n "$ROOT" ] || die_root "$arg_root"
+  local idx; idx="$(index_path)"
+  [ -s "$idx" ] || { echo "$PROG: no index yet — run: overwatch rebuild $ROOT" >&2; exit 1; }
+
+  local tmp
+  tmp="$(mktemp -d "${TMPDIR:-/tmp}/overwatch-why.XXXXXX")"
+  trap 'rm -rf "$tmp"' RETURN
+
+  # classify: commit sha | path | symbol
+  if printf '%s' "$q" | grep -Eq '^[0-9a-f]{7,40}$'; then
+    : # candidate commit
+    local found=0 r rp meta ep
+    for r in "$ROOT"/work/*/ "$ROOT/comms"; do
+      [ -d "$r" ] || continue
+      { [ -d "$r/.git" ] || [ -f "$r/.git" ]; } || continue
+      rp="work/$(basename "$r")"
+      [ "$r" = "$ROOT/comms" ] && rp="comms"
+      if git -C "$r" rev-parse --quiet --verify "${q}^{commit}" >/dev/null 2>&1; then
+        found=1
+        meta="$(git -C "$r" show -s --format='%H%x09%at%x09%h%x09%an%x09%aI%x09%s' "${q}^{commit}")"
+        ep="$(printf '%s' "$meta" | cut -f2)"
+        echo "commit: $(printf '%s' "$meta" | cut -f3)  [$rp$( [ "$rp" = "comms" ] && echo ' — transport plumbing (comms repo), work repos are the real tie target' )]"
+        printf '  %s  %s  %s\n' "$(printf '%s' "$meta" | cut -f5)" "$(printf '%s' "$meta" | cut -f6)" "$(printf '%s' "$meta" | cut -f7)"
+        if [ "$rp" = "comms" ]; then
+          echo "  touches (comms repo):"
+          git -C "$r" show --name-only --format= "${q}^{commit}" 2>/dev/null | awk '$0 ~ /^comms\// {n=split($0,p,"/"); if(n>=3) print "    " p[1]"/"p[2]"/"p[3]}' | sort -u
+        fi
+        local hits
+        hits="$(sessions_for_epoch "$ep")"
+        if [ -z "$hits" ]; then
+          echo "  sessions: (no omp transcript window covers this commit — nothing indexed ties it to a session)"
+        else
+          echo "  sessions:"
+          while IFS= read -r line; do print_session_block "$line"; done <<< "$hits"
+        fi
+      fi
+    done
+    [ "$found" = "1" ] || { echo "no hits for '$q' (7-40 hex treated as a commit sha; no repo under this folder contains it)"; exit 0; }
+    exit 0
+  fi
+
+  if [ -e "$ROOT/$q" ] || [ -e "$q" ]; then
+    # path mode (repo-relative names as printed by git)
+    local hits
+    hits="$(log_hits "$q" path)"
+    if [ -z "$hits" ]; then
+      echo "no hits for path '$q'"
+      exit 0
+    fi
+    printf '%s\n' "$hits"
+    echo "---"
+    echo "hint: these commits changed '$q'; run '$PROG why <short-sha>' for the session/comms tie"
+    exit 0
+  fi
+
+  # symbol mode: pickaxe across work repos
+  local hits
+  hits="$(log_hits "$q" symbol)"
+  if [ -z "$hits" ]; then
+    echo "no hits for '$q'"
+    exit 0
+  fi
+  echo "commits introducing/removing '$q' (git -S, all refs):"
+  printf '%s\n' "$hits" | awk -F'\t' '{printf "  %s  %s  %s  %s\n", $4, $6, $2, $7}' | head -40
+  echo "hint: run '$PROG why <short-sha>' per commit for the session/comms tie"
+  exit 0
+}
+
+# -------------------------------------------------------------------- turns --
+
+cmd_turns() {
+  local arg_root="${1:-}"
+  local uuid="" all=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --all) all=1; shift ;;
+      *) if [ -z "$uuid" ]; then uuid="$1"; shift; else shift; fi ;;
+    esac
+  done
+  [ -n "$uuid" ] || usage
+  printf '%s' "$uuid" | grep -Eq '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' \
+    || { echo "$PROG: not a session uuid: $uuid" >&2; exit 2; }
+  local tmp f
+  tmp="$(mktemp -d "${TMPDIR:-/tmp}/overwatch-turns.XXXXXX")"
+  trap 'rm -rf "$tmp"' RETURN
+  f=""
+  for d in "$HOME"/.omp/agent/sessions/*/; do
+    [ -d "$d" ] || continue
+    for c in "$d"*_"$uuid".jsonl; do
+      [ -f "$c" ] && { f="$c"; break; }
+    done
+    [ -n "$f" ] && break
+  done
+  if [ -z "$f" ]; then
+    echo "no transcript found for uuid $uuid (companion tool-log dirs are not required)"
+    exit 0
+  fi
+  jq -r --arg A "$all" '
+    def trunc($n): if (length > $n) then .[0:$n] + "…" else . end;
+    select(.type? == "message")
+    | . as $rec
+    | ($rec.timestamp? // "") as $ts
+    | ($rec.message? // null) as $m
+    | select($m != null)
+    | if $m.role? == "user" then
+        ([ $m.content? // [] | .[]? | select(.type? == "text") | .text ] | map(select(length > 0))) as $t
+        | (if ($t | length) > 0 then "\nUSER [" + $ts + "]\n" + ($t | join("\n")) + "\n" else empty end)
+      elif $m.role? == "assistant" then
+        ([ $m.content? // [] | .[]? ]) as $c
+        | ([ $c[] | select(.type? == "text") | .text | select(length > 0) ]) as $t
+        | (if ($t | length) > 0 then "\nASSISTANT [" + $ts + "]\n" + ($t | join("\n")) else empty end),
+          (if $A == "1" then
+             ([ $c[] | select(.type? == "toolCall")
+                | "  → " + (.name? // "?") + "(" + ((.arguments? // {}) | tostring | trunc(200)) + ")" ]
+             | join("\n"))
+           else
+             ([ $c[] | select(.type? == "toolCall") | "  → " + (.name? // "?") ] | join("\n"))
+           end
+           | select(length > 0))
+      elif $m.role? == "toolResult" then
+        (if $A == "1" then
+           "  ← " + ($m.toolName? // "?") + (if $m.isError? == true then " ERROR: " else ": " end)
+             + (([ $m.content? // [] | .[]? | (.text? // "") ] | join(" ")) | trunc(300))
+         else
+           "  ← " + ($m.toolName? // "?") + (if $m.isError? == true then " (error)" else "" end)
+         end)
+      else empty end
+  ' "$f"
+  exit 0
+}
+
+# ------------------------------------------------------------------ related --
+
+cmd_related() {
+  local arg_root="${1:-}"
+  local q
+  if [ $# -eq 3 ]; then ROOT="$(resolve_root "$2")" || die_root "$2"; q="$3"; elif [ $# -eq 1 ]; then ROOT="$(resolve_root "")" || die_root ""; q="$1"; else usage; fi
+  [ -n "$q" ] || usage
+  local idx; idx="$(index_path)"
+  local tmp
+  tmp="$(mktemp -d "${TMPDIR:-/tmp}/overwatch-rel.XXXXXX")"
+  trap 'rm -rf "$tmp"' RETURN
+  local hitsfile="$tmp/hits.tsv"; : > "$hitsfile"
+
+  # comms corpus (text files under comms/, .gitignored junk excluded by rg/git; fall back to find+grep when rg missing)
+  if command -v rg >/dev/null 2>&1; then
+    rg -Fic --no-messages -- "$q" "$ROOT/comms" | while IFS=: read -r file cnt; do
+      case "$file" in *.jsonl) continue ;; esac
+      [ "$cnt" -gt 0 ] || continue
+      rel="${file#"$ROOT"/}"
+      printf '2\tcomms\t%s\t%s\n' "$rel" "$cnt" >> "$hitsfile"
+    done
+  else
+    find "$ROOT/comms" -name .git -prune -o -type f \( -name '*.md' -o -name '*.txt' -o -name '*.sh' \) -print 2>/dev/null \
+      | while IFS= read -r file; do
+          c="$(grep -Fic -- "$q" "$file" 2>/dev/null || echo 0)"; c="${c%%$'\n'*}"
+          [ "${c:-0}" -gt 0 ] 2>/dev/null || continue
+          printf '1\tcomms\t%s\t%s\n' "${file#"$ROOT"/}" "$c" >> "$hitsfile"
+        done
+  fi
+
+  # session titles + recaps + commit subjects (from the index, when present)
+  if [ -s "$idx" ]; then
+    jq -r --arg q "$q" '
+      .uuid as $u | .cwd_slug as $slug | (.title // "") as $ti
+      | (([$ti] + [.recaps[]? // empty]) | map(select(test($q; "i"))))
+      | if length > 0 then [2, "session", $u, ($slug + " | " + $ti)] | @tsv else empty end
+    ' "$idx" >> "$hitsfile"
+    jq -r --arg q "$q" '
+      (.title // "") as $ti
+      | .work_repos[]? | .repo as $rp | .commits[]?
+      | select((.subject // "") | test($q; "i"))
+      | [2, "commit", (.short // .sha), ($rp + " | " + $ti + " | " + .subject)] | @tsv
+    ' "$idx" >> "$hitsfile"
+  fi
+
+  # code hits (file:line only, capped)
+  if command -v rg >/dev/null 2>&1; then
+    rg -F --no-heading --no-messages -- "$q" "$ROOT/work" 2>/dev/null \
+      | sed -E 's/^([^:]+):([0-9]+):.*/\1:\2/' \
+      | head -40 \
+      | while IFS= read -r fl; do
+          [ -n "$fl" ] && printf '1\tcode\t%s\tfile:line — see why <path> next\n' "${fl#"$ROOT"/}" >> "$hitsfile"
+        done
+  fi
+
+  if [ ! -s "$hitsfile" ]; then
+    echo "no hits for '$q'"
+    exit 0
+  fi
+  echo "related '$q' — ranked (weight, source, key):"
+  sort -t"$TAB" -k1,1rn -k3,3 "$hitsfile" | head -30 \
+    | awk -F'\t' '{printf "  [w%s] %-7s %s\n          %s\n", $1, $2, $3, $4}'
+  exit 0
+}
+
+# ---------------------------------------------------------------------- tie --
+
+cmd_tie() {
+  local arg_root="" target=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -*) usage ;;
+      *) if [ -z "$target" ]; then target="$1"; else arg_root="$1"; fi; shift ;;
+    esac
+  done
+  [ -n "$target" ] || usage
+  ROOT="$(resolve_root "$arg_root")" || die_root "$arg_root"
+  [ -n "$ROOT" ] || die_root "$arg_root"
+  local idx; idx="$(index_path)"
+  [ -s "$idx" ] || { echo "$PROG: no index yet — run: overwatch rebuild $ROOT" >&2; exit 1; }
+
+  # folder mode? accept: comms/<u>/<d>, $ROOT/comms/<u>/<d>, or a unique suffix
+  local rel=""
+  local can_target=""
+  [ -d "$target" ] && can_target="$(cd "$target" 2>/dev/null && pwd)"
+  if [ -n "$can_target" ] && [[ "$can_target" == "$ROOT/comms/"* ]] && [ -d "${can_target}" ]; then
+    rel="${can_target#"$ROOT"/}"
+  elif [[ "$target" == comms/*/* ]] && [ -d "$ROOT/$target" ]; then
+    rel="$target"
+  fi
+  if [ -z "$rel" ]; then
+    # allow suffix like patdabney/20261014-01 or 20261014-01 (unique match only)
+    local cands
+    cands="$(list_comms_folders | grep -- "$target" || true)"
+    if [ "$(printf '%s\n' "$cands" | grep -c .)" = "1" ] && [ -n "$cands" ]; then rel="$(printf '%s' "$cands")"; fi
+  fi
+
+  if [ -n "$rel" ]; then
+    echo "tie: $rel"
+    local hand="$ROOT/$rel/session-handoff.md"
+    if [ -f "$hand" ]; then
+      local stamp
+      stamp="$(grep -Eo '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' "$hand" 2>/dev/null | head -1)"
+      if [ -n "$stamp" ]; then echo "  handoff stamp: $stamp (authoritative)"
+      else echo "  handoff stamp: none (pre-slot-0; tie is window-derived)"
+      fi
+    fi
+    echo "  sessions tied (from index):"
+    jq -r --arg p "$rel" '
+      select([.comms_folders[]? | .path] | index($p))
+      | "    " + (.uuid) + "  " + (.title // "—")
+        + "   [" + ((.comms_folders[] | select(.path == $p) | .tie) // "?")
+        + (if ((.comms_folders[]? | select(.path == $p) | .ambiguous) == true) then "/ambiguous" else "" end) + "]"
+        + "   window " + .window_start + " → " + .window_end
+    ' "$idx"
+    echo "  ask (preamble excerpt, operator's own words):"
+    preamble_excerpt "$rel" 6
+    echo "  pointers:"
+    print_pointers "$rel"
+    echo "  commits inside tied windows:"
+    jq -r --arg p "$rel" '
+      select([.comms_folders[]? | .path] | index($p))
+      | .work_repos[]? | .repo as $rp | .commits[]?
+      | "    " + (.short) + "  " + (.date) + "  " + $rp + "  " + (.subject)
+    ' "$idx" | sort -u | head -30
+    exit 0
+  fi
+
+  # uuid mode
+  printf '%s' "$target" | grep -Eq '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' \
+    || { echo "$PROG: '$target' is neither a comms folder nor a session uuid" >&2; exit 2; }
+  local line
+  line="$(jq -c --arg u "$target" 'select(.uuid == $u)' "$idx" | head -1)"
+  [ -n "$line" ] || { echo "no indexed session for uuid $target (rebuild if recent)"; exit 0; }
+  echo "tie: session $target"
+  printf '%s\n' "$line" | jq -r '
+    "  title: " + (.title // "—"),
+    "  cwd: " + .cwd + "  (" + .cwd_slug + ")",
+    "  window: " + .window_start + " → " + .window_end,
+    ([ .recaps[]? ] | if length > 0 then ["  recaps:", (map("    - " + .))] | flatten | .[] else empty end),
+    (if ([.comms_folders[]?] | length) > 0 then
+       "  comms folders:" ,
+       ([ .comms_folders[]? |
+          "    " + .path + "  [" + .tie + (if .ambiguous == true then "/ambiguous" else "" end) + "]" ] | .[])
+     else empty end),
+    (if ([.work_repos[]? | .commits[]?] | length) > 0 then
+       "  commits (in window):",
+       ([ .work_repos[]? | .repo as $rp | .commits[]? |
+          "    " + .short + "  " + .date + "  " + $rp + "  " + .subject ] | .[])
+     else empty end)
+  '
+  local tpath=""
+  tpath="$(find "$HOME"/.omp/agent/sessions -maxdepth 2 -name "*_${target}.jsonl" 2>/dev/null | head -1)"
+  echo "  transcript: ${tpath:-not found}"
+  local ses_folder
+  ses_folder="$(printf '%s\n' "$line" | jq -r '.comms_folders[0]?.path // empty')"
+  if [ -n "$ses_folder" ]; then
+    echo "  ask (preamble excerpt, operator's own words):"
+    preamble_excerpt "$ses_folder" 4
+    print_pointers "$ses_folder"
+  fi
+  exit 0
+}
+
+TAB="$(printf '\t')"
+ROOT=""
+case "$CMD" in
+  rebuild) cmd_rebuild "$@" ;;
+  status)  cmd_status "$@" ;;
+  why)     cmd_why "$@" ;;
+  turns)   cmd_turns "$@" ;;
+  related) cmd_related "$@" ;;
+  tie)     cmd_tie "$@" ;;
+esac

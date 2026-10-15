@@ -110,6 +110,7 @@ $CONVENTION
 - Multi-agent parallel work happens in git worktrees of a built repo (\`git worktree add ../<repo>-lane-N\` from the built repo), not by writing into prior-art clones.
 - Session lifecycle: \`./comms/session-start.sh\` to begin or resume (\`--resume\` for same-day continuation), \`./comms/session-end.sh\` to seal the handoff at session end.
 - \`session-start.sh\` refreshes every \`prior-art/\` repo from origin at session start (fetch + ff-only pull, fail-soft): reference stays current. Dirty or diverged clones are named in the intro and left alone — resolving them is a deliberate act, never automatic.
+- \`session-start.sh\` also rebuilds the **overwatch index** (\`comms/.overwatch-index.jsonl\`, gitignored, derived — never canonical) when the \`overwatch\` CLI (agent-runbook install) is on PATH; absent tool → one intro line, nothing breaks. The index ties omp sessions ↔ comms folders ↔ work-repo commits; sources stay truth, pointers only.
 EOF
 
 cat > "$TARGET/comms/README.md" <<'PROTOCOL'
@@ -176,6 +177,13 @@ operator / agent          what happens
   `COMMS_NO_PREAMBLE_PANE=1`. Assessments and handoffs can be displayed rendered via
   `./comms/glow-pane.sh <file.md>` — opens/replaces a `glow: <label>` pane running
   `glow -p`, or plain stdout rendering outside herdr.
+- **Overwatch index rebuild (fail-soft, session-start).** When the `overwatch` CLI
+  (shipped + PATH-gated by the agent-runbook installer) is on PATH, `session-start.sh`
+  rebuilds `comms/.overwatch-index.jsonl` — a DERIVED, gitignored, per-node index
+  tying omp sessions ↔ comms folders ↔ work-repo commits (pointers only; transcript
+  prose never enters the index). The rebuild fires only here and at explicit
+  `overwatch rebuild` — never cron/watch. `overwatch` absent → one intro line, rc
+  unchanged; the protocol does not depend on it.
 - **Unsealed handoffs are drafts.** The template ships with a `<!-- SEAL: delete this line -->`
   marker; until `session-end.sh` removes it, the file is not canonical, and `session-start.sh`
   will fall back to the newest *sealed* handoff. A session that dies mid-handoff can't poison
@@ -633,6 +641,25 @@ if [[ -d prior-art ]]; then
   done
 fi
 
+# --- overwatch index rebuild (fail-soft, only when overwatch is on PATH) --------
+# Session boundaries are the protocol's only sync firing points; this rebuild is
+# fail-soft by construction: absent tool → one intro line, rc unchanged. Derived
+# index (comms/.overwatch-index.jsonl, gitignored) is rebuilt, never canonical.
+OV_STATUS=""
+if command -v overwatch >/dev/null 2>&1; then
+  if OV_OUT="$(overwatch rebuild "$ROOT" 2>&1)"; then
+    OV_COUNT="$(printf '%s' "$OV_OUT" | sed -n 's/^overwatch: \(.*\)/\1/p' | head -1)"
+    OV_STATUS="
+  overwatch: index rebuilt (${OV_COUNT:-ok})"
+  else
+    OV_STATUS="
+  overwatch: rebuild failed (fail-soft; run 'overwatch rebuild' to see why)"
+  fi
+else
+  OV_STATUS="
+  (overwatch: not installed — index rebuild skipped)"
+fi
+
 # --- print the intro ------------------------------------------------------------
 NEWEST_ALL=""
 if (( ${#handoffs[@]} )); then NEWEST_ALL="$(REL_FROM_ENTRY "${handoffs[$(( ${#handoffs[@]} - 1 ))]}")"; fi
@@ -698,7 +725,7 @@ READ, in order (the only comms context at session start):
 $SECOND
 $PREAMBLE_NOTICE
 
-That's it. No other comms files, no prior-art, unless the handoff or the operator names them.$PA_STATUS
+That's it. No other comms files, no prior-art, unless the handoff or the operator names them.$PA_STATUS$OV_STATUS
 
 When the session ends, run: ./comms/session-end.sh
 EOF

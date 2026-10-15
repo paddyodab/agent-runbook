@@ -1,0 +1,25 @@
+{
+  "mode": "live box + no-rg degrade arm",
+  "known_term": {
+    "query": "session-tie",
+    "sources_hit": ["session (title match, tie-annotated)", "commit (subject match, session title carried)", "code (file:line via rg)", "no hit classes missing"],
+    "ranked_output": true,
+    "tie_annotated": "session hits carry slug + title; commit hits carry repo + session title + subject",
+    "pass": true
+  },
+  "untracked_term_arm": {
+    "query": "zzz_untracked_term_q",
+    "output": "no hits for 'zzz_untracked_term_q'",
+    "rc": 0,
+    "threshold_honest": "empty set, never noise",
+    "pass": true
+  },
+  "no_rg_degrade_arm": {
+    "method": "PATH without the .local/bin dir carrying rg (verified command -v rg empty); run related + status",
+    "related_result": "session, commit, comms-corpus hits still ranked (grep fallback for comms corpus; no code-hit class)",
+    "status_rc": 0,
+    "note": "degradation named in machine.yml (rg optional); docs say related without code hits",
+    "pass": true
+  },
+  "verdict": "PASS"
+}

@@ -75,6 +75,13 @@ glow-pane.sh       — display any markdown in a herdr `glow: <label>` pane
                      the same file replaces its previous glow pane; outside
                      herdr (or without glow) it renders to stdout (unit
                      herdr-pane-01)
+overwatch          — the session↔comms↔commit query surface over a derived
+                     index (comms/.overwatch-index.jsonl, gitignored,
+                     per-node, pointers-only): rebuild/status/why/turns/
+                     related/tie. "How did we come to make this change?"
+                     becomes a command. NOT an agent or daemon: fires only
+                     when invoked + one fail-soft rebuild at session-start
+                     (unit overwatch-01)
 sandbox-test.sh   — the proof: docker container + fresh HOME + machine install + pinned omp
 sbx-test.sh       — the same proof in a real Docker Sandbox microVM (sbx create shell)
 .evidence/        — numbered JSON artifacts + PROOF.md per proven unit
@@ -209,6 +216,35 @@ AWS deploy + auth shapes (all VERIFY-AT-DEPLOY until run against a live bucket):
 "Shared-context box" section of [machine.md](machine.md). Evidence:
 `.evidence/artifacts-sync-01/` (roundtrip, fences, moto S3-API flow, hatches,
 bash-3.2 docker).
+
+## The query surface (overwatch)
+
+The operator's standing questions — *"how did we come to make this change (who, what
+were they thinking)?"* and *"what did we work on related to this commit/class?"* — are
+mechanical here: git carries who+what, comms carries why (preamble = ask, conversation
+= reasoning, handoff = state), omp transcripts carry the session arc, history.db carries
+titles/recaps. `overwatch` joins them.
+
+- **Index:** `comms/.overwatch-index.jsonl` — DERIVED (rebuild at will), gitignored,
+  per-node (every box rebuilds its own; no transport value in a snapshot), POINTERS
+  ONLY (paths, hashes, uuids, titles; never transcript prose or comms excerpts).
+  Refreshes at explicit `overwatch rebuild` + one fail-soft rebuild in
+  `session-start.sh` (the protocol's session-boundary firing point; absent tool → one
+  intro line, nothing breaks).
+- **Tie model:** cwd-slug + enclosing folder (exact match); handoff slot-0 UUID stamp
+  authoritative; pre-stamp folders derive the tie from transcript-window ∩ comms-folder
+  evidence epochs; ambiguous overlaps keep BOTH candidates marked `ambiguous` — never
+  a silent pick. Work-repo commits tie by author-date inside the transcript window
+  (`git log --all`; full local history, no remote API in v1). Titles/recaps join
+  read-only from `~/.omp/agent/history.db`.
+- **Commands:** `rebuild [<folder>]`, `status`, `why <sha|path|symbol>`, `turns <uuid>
+  [--all]` (prints to stdout only, never persists), `related <text>`, `tie <uuid|folder>`.
+- **Deps:** git, sqlite3, jq required; `rg` optional (degrades: related without code
+  hits); gh NOT required (optional plumbing in a later unit only).
+- **Fences held:** no daemon/watcher/cron (session-start rebuild is invoked at the
+  protocol's own boundary firing point, not automatic firing); read-only on every
+  source (sqlite opened `-readonly`, tmp-copy fallback on lock); no omp writes; no
+  prior-art/artifacts indexing; no remote API in v1. Evidence: `.evidence/overwatch-01/`.
 
 ## Conventions
 

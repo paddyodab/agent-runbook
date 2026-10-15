@@ -1,0 +1,21 @@
+{
+  "mode": "live box (this enclosing folder)",
+  "command": "overwatch rebuild; overwatch rebuild",
+  "index": "comms/.overwatch-index.jsonl",
+  "sessions_indexed": 5,
+  "titled_from_history_db": 5,
+  "rebuild_first_line_count": 5,
+  "rebuild_second_line_count": 5,
+  "idempotent": true,
+  "pointers_only_check": {
+    "method": "grep of forbidden prose substrings (transcript turn text, handoff boilerplate) against the index",
+    "forbidden_patterns": ["def trunc", "Written for a cold reader"],
+    "hits": 0
+  },
+  "gitignored": true,
+  "gitignore_line": ".overwatch-index.jsonl",
+  "index_line_shape": "{'uuid','window_start','window_end','cwd_slug','cwd','title','recaps[]','comms_folders[{path,tie,ambiguous}]','work_repos[{repo,commits[{sha,short,date,author,subject}]}]'}",
+  "tie_counts": { "stamp": 2, "window": 3, "ambiguous": 0 },
+  "commit_rows": 11,
+  "verdict": "PASS"
+}

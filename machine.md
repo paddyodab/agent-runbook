@@ -11,6 +11,7 @@ docker sandbox). Fresh install, all the extras, nothing accumulated by accident.
 | `machine.yml` | The manifest: omp version pin, runtime deps with checks, skill list, ticketing adapter slot, secrets policy | this repo |
 | `install.sh --machine` | Manifest-driven install: skills symlinked, AGENTS.md block, scaffold, adapter clone + omp plugin link, secrets *gated* (never written) | this repo |
 | `install.sh --doctor` | Read-only report: what's missing, what drifted. Runs before every mutation, writes nothing | this repo |
+| `overwatch` | The session↔comms↔commit query CLI over a derived, gitignored per-node index (`comms/.overwatch-index.jsonl`): rebuild/status/why/turns/related/tie; fires only when invoked + one fail-soft session-start rebuild. Deps: git, sqlite3, jq (required), rg (optional) | this repo |
 | `sandbox-test.sh` | The proof: docker container (debian + the repo mounted), fresh HOME, machine install, pinned omp via mise, `omp --print` round-trip when auth is provided | this repo |
 | `sbx-test.sh` | Same proof in a real Docker Sandbox microVM (`sbx create shell`), virgin HOME, machine install, pinned omp, optional `omp --print` | this repo |
 | scaffold (`new-enclosing-folder.sh`) | The enclosing-folder stamp (comms protocol + herdr preamble-pane hook, `comms/glow-pane.sh`, prior-art read-only, artifacts/, `work/` edit-copies tier) | this repo |

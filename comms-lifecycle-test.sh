@@ -178,7 +178,7 @@ echo "== 11. cross-user CHRONOLOGY: newest date-seq wins regardless of user name
 # The path-sort bug class: a LATE-alphabet user holding an OLD handoff vs an
 # EARLY-alphabet user holding a NEW one. Fixtures use real calendar offsets so the
 # test is date-independent:
-YESTERDAY="$(date -v -1d +%Y%m%d 2>/dev/null || date -u -d "@$(( $(date -u +%s) - 86400 ))" +%Y%m%d)"
+YESTERDAY="$(date -v -1d +%Y%m%d 2>/dev/null || date -d "@$(( $(date +%s) - 86400 ))" +%Y%m%d)"
 TODAY="$(date +%Y%m%d)"
 mkdir -p "$(sess_dir zz/$YESTERDAY-01)"
 fill_handoff "$(sess_dir zz/$YESTERDAY-01)/session-handoff.md" zz
@@ -203,7 +203,7 @@ echo "$OUT" | grep -Eq "Resuming from sealed handoff: comms/u[12]/$TODAY-01/sess
 # u2 has OWN today-sealed + zz has OLDER sealed; a THIRD user (mid-alphabet 'mw')
 # gets an intermediate date; fresh-start for a FOURTH user 'anew' must pick u2's
 # today (newest), regardless of zz sorting last.
-MW_YESTERDAY="$(date -v -2d +%Y%m%d 2>/dev/null || date -u -d "@$(( $(date -u +%s) - 172800 ))" +%Y%m%d)"
+MW_YESTERDAY="$(date -v -2d +%Y%m%d 2>/dev/null || date -d "@$(( $(date +%s) - 172800 ))" +%Y%m%d)"
 mkdir -p "$(sess_dir mw/$MW_YESTERDAY-01)"
 fill_handoff "$(sess_dir mw/$MW_YESTERDAY-01)/session-handoff.md" mw
 run 0 u2 session-end.sh "mw/$MW_YESTERDAY-01" 2>/dev/null || true
