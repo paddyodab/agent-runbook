@@ -341,6 +341,30 @@ if [ "$DOCTOR" != "1" ] && [ -x "$GLOWSRC" ] && [ -d "${HOME}/.local/bin" ]; the
   esac
 fi
 
+# 3d-3. overwatch (copy, exec bit — same PATH gate + refuse-fence class)
+OWSRC="$HERE/overwatch"
+OWDST="${HOME}/.local/bin/overwatch"
+if [ "$DOCTOR" != "1" ] && [ -x "$OWSRC" ] && [ -d "${HOME}/.local/bin" ]; then
+  case ":$PATH:" in
+    *":${HOME}/.local/bin:"*)
+      if [ -L "$OWDST" ]; then
+        rm "$OWDST"
+      elif [ -e "$OWDST" ]; then
+        if ! cmp -s "$OWDST" "$OWSRC"; then
+          provenance_or_refuse "$OWSRC" "$OWDST"
+        fi
+      fi
+      tmp_ow="$(mktemp)"
+      cat "$OWSRC" > "$tmp_ow"
+      chmod 755 "$tmp_ow"
+      mv "$tmp_ow" "$OWDST"
+
+      installed="$installed
+  $OWDST (overwatch installed)"
+      ;;
+  esac
+fi
+
 if [ "$DOCTOR" != "1" ] && [ -x "$SCAFFOLD_SRC" ] && [ -d "${HOME}/.local/bin" ]; then
   case ":$PATH:" in
     *":${HOME}/.local/bin:"*)
@@ -495,7 +519,7 @@ if [ "$DOCTOR" = "1" ]; then
   # scaffold + migrator installed-copy parity (PATH-gated installs)
   case ":$PATH:" in
     *":${HOME}/.local/bin:"*)
-      for dexec in comms-sync migrate-user-comms.sh new-enclosing-folder.sh fresh-box.sh artifacts-sync glow-pane.sh; do
+      for dexec in comms-sync migrate-user-comms.sh new-enclosing-folder.sh fresh-box.sh artifacts-sync glow-pane.sh overwatch; do
         ddst="${HOME}/.local/bin/$dexec"
         dsrc="$HERE/$dexec"
         [ "$dexec" = "new-enclosing-folder.sh" ] && dsrc="$HERE/scaffold/$dexec"
@@ -532,6 +556,6 @@ WARNINGS:
 $warn
 }
 Uninstall: remove the marked block from $OMP_AGENTS, the skill symlinks under
-$OMP_SKILLS and $AGENTS_SKILLS, $SCAFFOLD_DST, $SYNCDST, $FRESHBOX_DST, $ARTDST, $GLOWDST if installed,
+$OMP_SKILLS and $AGENTS_SKILLS, $SCAFFOLD_DST, $SYNCDST, $FRESHBOX_DST, $ARTDST, $GLOWDST, $OWDST if installed,
 and any adapter clone under ~/.omp/adapters/.
 EOF

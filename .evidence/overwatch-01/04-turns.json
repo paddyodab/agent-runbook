@@ -1,0 +1,31 @@
+{
+  "mode": "live box + junk-HOME fail-soft arm",
+  "session_uuid": "01a13c1c-5c76-7062-afc4-0bb0ea04eb61 (this build session)",
+  "collapsed_mode": {
+    "user_turns_printed": 3,
+    "assistant_turns_printed": 8,
+    "tool_results_collapsed": "toolResult bodies suppressed; tool names printed",
+    "first_turn": "USER [2026-10-14T20:37:08.790Z] — session-start ask ('let's read the preamble')",
+    "pass": true
+  },
+  "all_mode": {
+    "tool_calls_with_arguments_truncated_200": true,
+    "tool_results_with_text_bodies_truncated_300": true,
+    "gating": "--all switches BOTH toolCall args and toolResult bodies (verified: '← name: text' lines 0→70 across modes)",
+    "pass": true
+  },
+  "absent_uuid_arm": {
+    "output": "no transcript found for <uuid> (companion tool-log dirs are not required)",
+    "rc": 0,
+    "clean_empty": true,
+    "pass": true
+  },
+  "companion_not_required_arm": {
+    "method": "junk HOME with ONLY the .jsonl copied into an omp-sessions slug dir (no companion dir)",
+    "result": "turns printed correctly",
+    "fail_soft": true,
+    "pass": true
+  },
+  "persistence_check": "turn text prints to stdout only; nothing written (no output files; temp dirs trap-cleaned)",
+  "verdict": "PASS"
+}

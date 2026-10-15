@@ -16,6 +16,13 @@ machine:
   runtime_deps:                     # needed by the extras, not by omp itself
     - name: git
       check: git --version
+    - name: sqlite3                 # overwatch history.db reads (read-only)
+      check: sqlite3 --version
+    - name: jq                      # overwatch + comms scaffold tooling
+      check: jq --version
+    - name: rg                      # overwatch related-search + code hits (optional, degrades to grep/no-code)
+      check: rg --version
+      optional: true
     - name: gh                      # gh-issues adapter; also used for remote ops
       check: gh --version
     - name: glow                    # herdr mind-pane rendering (optional, warn only)

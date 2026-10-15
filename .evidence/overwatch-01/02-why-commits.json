@@ -1,0 +1,14 @@
+{
+  "mode": "live box (this enclosing folder)",
+  "ground_truth": "session-tie-01 (20261014-03) proved commits bb58e65, 3c39219, e0d4b07, 2c80008 landed inside session patdabney/20261014-02's transcript window (01a13b8d-81d6-7560-90bd-7a9c6bbf952d, 2026-10-14T17:54:51Z→18:30:35Z)",
+  "expected": "each sha resolves via `overwatch why` to comms/patdabney/20261014-02 + that titled session",
+  "results": {
+    "bb58e65": { "folder": "comms/patdabney/20261014-02", "uuid": "01a13b8d-81d6-7560-90bd-7a9c6bbf952d", "session_title": "Implement session-start prior-art refresh and feature-branch-policy", "pass": true },
+    "3c39219": { "folder": "comms/patdabney/20261014-02", "uuid": "01a13b8d-81d6-7560-90bd-7a9c6bbf952d", "pass": true },
+    "e0d4b07": { "folder": "comms/patdabney/20261014-02", "uuid": "01a13b8d-81d6-7560-90bd-7a9c6bbf952d", "pass": true },
+    "2c80008": { "folder": "comms/patdabney/20261014-02", "uuid": "01a13b8d-81d6-7560-90bd-7a9c6bbf952d", "pass": true },
+    "c09f462 (comms-repo sha)": { "answered": true, "labeled": "transport plumbing (comms repo), work repos are the real tie target", "touched_comms_folders_listed": true, "session_block_printed": true, "pass": true }
+  },
+  "notes": "fix during build: work-repo discovery bug — '$r.git' adjacent-path check never matches a real clone dir ('work/<repo>/.git' is INSIDE, not adjacent); three sites (rebuild collector, log_hits, why loop) fixed to \"$r/.git\".",
+  "verdict": "PASS"
+}

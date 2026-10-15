@@ -1,0 +1,17 @@
+{
+  "anchored_splice": {
+    "anchor_open": "scaffold/new-enclosing-folder.sh line 380: cat > \"$TARGET/comms/session-start.sh\" <<'SCRIPT_EOF'",
+    "anchor_close": "line 732: SCRIPT_EOF (never remembered line numbers — bounds derived by grep/awk at proof time)",
+    "body_lines": "381–731",
+    "body_bytes": 19175,
+    "live_bytes": 19175,
+    "cmp": "byte parity (cmp rc=0)"
+  },
+  "method": "live comms/session-start.sh (canonical, with the overwatch fail-soft rebuild block re-verified host-side) re-spliced into the scaffold heredoc; cmp at anchored bounds",
+  "other_mirrors": {
+    "scaffold README heredoc": "+ overwatch index bullet (enclosing README)",
+    "scaffold comms/README heredoc": "+ overwatch index-rebuild protocol bullet (mirrors live comms/README.md edit)",
+    "live comms/README.md": "edited directly (live canonical for the protocol docs)"
+  },
+  "verdict": "PASS"
+}

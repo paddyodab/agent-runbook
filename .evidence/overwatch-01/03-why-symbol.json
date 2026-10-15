@@ -1,0 +1,26 @@
+{
+  "mode": "live box",
+  "symbol_arm": {
+    "query": "herdr_preamble_pane_setup",
+    "mechanism": "git log --all -S across work/<repo> (all refs)",
+    "commits_found": ["9a2c046 (preamble-pane-sealed-01)", "2b6c213 (herdr-pane-01)"],
+    "hint_printed": "run 'overwatch why <short-sha>' per commit for the session/comms tie",
+    "rc": 0,
+    "pass": true
+  },
+  "symbol_clean_empty_arm": {
+    "query": "definitely_not_a_symbol_zz",
+    "output": "no hits for 'definitely_not_a_symbol_zz'",
+    "rc": 0,
+    "report_not_error": true,
+    "pass": true
+  },
+  "path_arm": {
+    "query": "overwatch",
+    "output": "no hits for path 'overwatch'",
+    "note": "repo-relative path mode; work-repo files only — `overwatch` lives only on the feature branch checkout (uncommitted at artifact time), so zero path hits is the honest answer",
+    "rc": 0,
+    "pass": true
+  },
+  "verdict": "PASS"
+}

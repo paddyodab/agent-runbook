@@ -1,0 +1,26 @@
+{
+  "mode": "host (bash 5.x) + alpine:3.19 docker (bash 3.2-class) + shellcheck + installer doctor",
+  "lifecycle_gate_host": {
+    "fixture": "junk scaffold build (work repo scaffold pre-change? no — current feature branch scaffold)",
+    "result": "32 pass / 0 fail",
+    "note": "5 pre-existing failures found and FIXED in this unit's regression run: comms-lifecycle-test.sh's YESTERDAY/MW_YESTERDAY fallbacks used `date -u` — on a UTC-4 box after 16:00 local, UTC-yesterday == local-TODAY, collapsing the chronology arms into ties (time-of-day-dependent gate bug; reproduced at the untouched reference clone @41bb340 BEFORE any overwatch change, then fixed host+work: date -d \"@epoch-86400\" local). Baseline-before-fix at reference: 27/5; after fix: 32/0 on both hosts."
+  },
+  "lifecycle_gate_bash32_docker": {
+    "image": "alpine:3.19 (bash 5.2 installed via apk along with sqlite, jq, git, grep)",
+    "fixture": "fresh copy of this enclosing folder inside container, session dirs stripped, git+grep provisioned (earlier 26/3 run was missing git+grep provisioning, not a code failure)",
+    "result": "32 pass / 0 fail",
+    "pass": true
+  },
+  "shellcheck": {
+    "overwatch": "clean",
+    "install.sh": "clean (touched: PATH-gate block, doctor dexec, uninstall line)",
+    "scaffold/new-enclosing-folder.sh": "clean (session-start heredoc re-splice + README/comms-README bullets)",
+    "comms-lifecycle-test.sh": "12 pre-existing warnings (untouched by this unit except the two date lines); not introduced here"
+  },
+  "installer_doctor": {
+    "live_box_work_copy": "honest: names overwatch 'not installed', scaffold/skills drift vs installed (expected — work copy is ahead of the installed @41bb340; machine-tier installs come from the reference clone per standing rule)",
+    "junk_HOME": "honest: missing entries named, writes nothing",
+    "dexec_loop": "overwatch added to the parity loop (drift reported after install)"
+  },
+  "verdict": "PASS"
+}

@@ -352,7 +352,7 @@ no node is special. Session boundaries are the only sync firing points.
   change beyond the hook; no label/report-metadata usage (fields absent).
 - **Depends on:** nothing.
 
-### Unit overwatch-01 — overwatch CLI: the why/what query surface over a derived index (20261014-04)
+### Unit overwatch-01 — overwatch CLI: the why/what query surface over a derived index (20261014-04; BUILT 20261014-05, branch feature/overwatch-01)
 
 - **Problem:** the operator's questions — "how did we come to make this change
   (who, what were they thinking)?" and "what did we work on related to this
@@ -388,6 +388,16 @@ no node is special. Session boundaries are the only sync firing points.
 - **Operator goal addendum (20261014-04 close):** end state = separate-context
   ADVISOR for the operator (advisor chat surface = later unit; v1 CLI is the
   context-free substrate all advisor options share).
+- **Build (20261014-05, this unit's build session):** `overwatch` script (bash
+  3.2-safe, shellcheck clean), live session-start fail-soft hook, scaffold mirror
+  re-spliced (cmp byte-parity), install.sh §3d-3 PATH-gate + doctor dexec + uninstall
+  line, machine.yml deps (sqlite3, jq required; rg optional), README/machine.md
+  sections, evidence artifacts 01–07. Operator picks this session (preamble
+  triage, `comms/patdabney/20261014-05/mind/003`): multi-folder config = later unit
+  overwatch-02; search backend stays rg/history.db (FTS5/qmd recorded as upgrade
+  lanes); overwatch stays in agent-runbook (extraction triggers on record);
+  reminder-hook unit queued after overwatch-01; advisor surface = option 2
+  (throwaway omp advisory session, operator-invoked) for the LATER advisor unit.
 
 ## Sequencing & lanes
 
