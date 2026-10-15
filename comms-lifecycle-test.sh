@@ -57,9 +57,20 @@ ok()   { PASS=$((PASS+1)); RESULTS+=("PASS $1"); echo "  PASS: $1"; }
 fail() { FAIL=$((FAIL+1)); RESULTS+=("FAIL $1: $2"); echo "  FAIL: $1 — $2" >&2; }
 
 # run <expected-rc> <user> <script> [args...] — captures out+err separately
+#
+# HERDR ISOLATION (pane-flood fix, 20261015): the gate normally runs inside a
+# herdr-managed agent pane, so HERDR_ENV=1 + HERDR_PANE_ID leak into EVERY
+# fixture invocation. session-start.sh's preamble-pane hook then opens a REAL
+# nvim pane in the operator's workspace per fake user per start — pointing at
+# /tmp fixture paths that the EXIT trap then deletes (16 dead panes from 2
+# gate runs here). The gate is not herdr: strip the herdr identity markers
+# AND set the hook's own opt-out, so a future hook variant keyed on only one
+# of them still can't split panes.
 run() {
   local want_rc="$1" user="$2"; shift 2
-  OUT="$(USER="$user" HOME="$LIFECYCLE_HOME" bash "$SCRIPTS/$1" "${@:2}" 2>"$LIFECYCLE_HOME/.stderr")"
+  OUT="$(USER="$user" HOME="$LIFECYCLE_HOME" \
+        env -u HERDR_ENV -u HERDR_PANE_ID -u HERDR_TAB_ID -u HERDR_WORKSPACE_ID \
+        COMMS_NO_PREAMBLE_PANE=1 bash "$SCRIPTS/$1" "${@:2}" 2>"$LIFECYCLE_HOME/.stderr")"
   RC=$?
   ERR="$(cat "$LIFECYCLE_HOME/.stderr")"
   [ "$RC" = "$want_rc" ]
