@@ -1157,6 +1157,9 @@ cat > "$TARGET/comms/.gitignore" <<'GITIGNORE_EOF'
 *.tmp
 .stderr
 .env
+
+# overwatch derived index (per-node; never canonical — rebuild anytime)
+.overwatch-index.jsonl
 GITIGNORE_EOF
 
 # The credential pre-push hook ships ONE way: this heredoc is the single source.
