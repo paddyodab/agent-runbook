@@ -107,6 +107,15 @@ run 0 u1 session-start.sh
 [ -d "$(sess_dir u1/$(date +%Y%m%d)-01)" ] && ok "u1 fresh start creates comms/u1/<today>-01" || fail "u1 fresh start" "folder missing"
 echo "$OUT" | grep -q "comms/u1/$(date +%Y%m%d)-01" && ok "intro names u1's session folder" || fail "intro" "session folder path not in intro"
 
+echo "== 1b. empty omp session-slug dir does not kill the intro (glob guard)"
+# Found live in shared-agent-research (patdabney/20261015-03): an EMPTY
+# ~/.omp/agent/sessions/<cwd-slug>/ made `ls -t "$dir"/*.jsonl` exit 2; under
+# set -euo pipefail the intro died (rc 2, no output) after stamping the session
+# folder. The fixture HOME has no omp dir at all — seed the EMPTY dir here.
+mkdir -p "$LIFECYCLE_HOME/.omp/agent/sessions/-$(printf '%s' "$TARGET" | sed "s|^$LIFECYCLE_HOME||; s|^/||; s|/|-|g")"
+run 0 u1 session-start.sh --resume
+echo "$OUT" | grep -q "Session id: (unknown" && ok "intro survives empty omp slug dir (Session id unknown)" || fail "empty omp slug dir" "intro did not survive: rc=$RC out=$OUT"
+
 echo "== 2. u2 fresh start while u1 unsealed (per-user guard)"
 run 0 u2 session-start.sh
 [ -d "$(sess_dir u2/$(date +%Y%m%d)-01)" ] && ok "u2 fresh start succeeds while u1 unsealed" || fail "u2 fresh start" "folder missing"
