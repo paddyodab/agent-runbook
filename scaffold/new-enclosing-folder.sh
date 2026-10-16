@@ -705,10 +705,16 @@ fi
 # or still being written. Never required — the intro prints "(unknown)" when omp
 # sessions are absent/moved (different config dir). Overwatch derives the tie from
 # cwd-slug + time window when this shows (unknown).
+# Found live in shared-agent-research: compgen guard added — the dir can be
+# empty, and `ls "$dir"/*.jsonl` on it is exit 2 under set -euo pipefail.
 OMP_SESS_DIR="${HOME}/.omp/agent/sessions"
 CUR_SLUG="-$(printf '%s' "$ROOT" | sed "s|^${HOME}||; s|^/||; s|/|-|g")"
 CUR=""
-if [[ -d "$OMP_SESS_DIR/$CUR_SLUG" ]]; then
+# An empty omp dir with zero *.jsonl makes `ls "$dir"/*.jsonl` exit 2 (No such
+# file), and under `set -euo pipefail` that 2 propagated and killed the intro
+# after it had stamped the whole session — exit code 2, empty output. The
+# unquoted glob expands (or survives) but its rc still poisons the assignment.
+if [[ -d "$OMP_SESS_DIR/$CUR_SLUG" ]] && compgen -G "$OMP_SESS_DIR/$CUR_SLUG/*.jsonl" >/dev/null; then
   CUR="$(ls -t "$OMP_SESS_DIR/$CUR_SLUG"/*.jsonl 2>/dev/null | head -1 | sed -n 's/.*_\([0-9a-f-]\{36\}\)\.jsonl$/\1/p')"
 fi
 OMP_SESS_LINE="Session id: ${CUR:-(unknown — derive from cwd-slug + folder time)}"
