@@ -1,0 +1,12 @@
+migrate-enclosing-folder report — /tmp/mig-dirs
+  scaffold source: /home/patdabney/Documents/GitHub/shared-context-behaviors/agent-runbook-next/work/agent-runbook/scaffold/new-enclosing-folder.sh
+  scope: --only dirs
+
+  [missing] /tmp/mig-dirs/prior-art — (stampable)
+  [current] /tmp/mig-dirs/artifacts — (exists)
+  [missing] /tmp/mig-dirs/work — (stampable)
+
+stamped dir /tmp/mig-dirs/prior-art (was missing)
+stamped dir /tmp/mig-dirs/work (was missing)
+
+apply done (all requested classes succeeded).

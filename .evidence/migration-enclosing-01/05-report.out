@@ -1,0 +1,20 @@
+migrate-enclosing-folder report — /tmp/mig-unsealed
+  scaffold source: /home/patdabney/Documents/GitHub/shared-context-behaviors/agent-runbook-next/work/agent-runbook/scaffold/new-enclosing-folder.sh
+
+  [current] /tmp/mig-unsealed/AGENTS.md
+  [current] /tmp/mig-unsealed/README.md
+  [current] comms/session-start.sh
+  [current] comms/session-end.sh
+  [current] comms/glow-pane.sh
+  [current] comms/README.md
+  [current] comms/templates/session-handoff.md
+  [current] comms/templates/conversation.md
+  [current] comms/templates/preamble.txt
+  [current] comms/hooks/pre-push
+  [current] comms/.git/hooks/pre-push — (active == tracked)
+  [current] comms/.gitignore
+  [current] /tmp/mig-unsealed/prior-art — (exists)
+  [current] /tmp/mig-unsealed/artifacts — (exists)
+  [current] /tmp/mig-unsealed/work — (exists)
+
+report-only; nothing mutated. To reconcile: add --apply [--only class,class] [--force-section]

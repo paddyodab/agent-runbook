@@ -246,6 +246,29 @@ if [ "$DOCTOR" != "1" ] && [ -x "$MIGRATE_SRC" ] && [ -d "${HOME}/.local/bin" ];
   esac
 fi
 
+# 2c. migrate-enclosing-folder.sh (report-first scaffold reconcile; same gate)
+MIGF_SRC="$HERE/migrate-enclosing-folder.sh"
+MIGF_DST="${HOME}/.local/bin/migrate-enclosing-folder.sh"
+if [ "$DOCTOR" != "1" ] && [ -x "$MIGF_SRC" ] && [ -d "${HOME}/.local/bin" ]; then
+  case ":$PATH:" in
+    *":${HOME}/.local/bin:"*)
+      if [ -L "$MIGF_DST" ]; then
+        rm "$MIGF_DST"
+      elif [ -e "$MIGF_DST" ]; then
+        if ! cmp -s "$MIGF_DST" "$MIGF_SRC"; then
+          provenance_or_refuse "$MIGF_SRC" "$MIGF_DST"
+        fi
+      fi
+      tmp_migf="$(mktemp)"
+      cat "$MIGF_SRC" > "$tmp_migf"
+      chmod 755 "$tmp_migf"
+      mv "$tmp_migf" "$MIGF_DST"
+      installed="$installed
+  $MIGF_DST (enclosing-folder reconcile installed)"
+      ;;
+  esac
+fi
+
 # 3b. comms-sync (copy, exec bit — same PATH gate + refuse-fence as scaffold/migrator)
 SYNCSRC="$HERE/comms-sync"
 SYNCDST="${HOME}/.local/bin/comms-sync"
@@ -519,7 +542,7 @@ if [ "$DOCTOR" = "1" ]; then
   # scaffold + migrator installed-copy parity (PATH-gated installs)
   case ":$PATH:" in
     *":${HOME}/.local/bin:"*)
-      for dexec in comms-sync migrate-user-comms.sh new-enclosing-folder.sh fresh-box.sh artifacts-sync glow-pane.sh overwatch; do
+      for dexec in comms-sync migrate-user-comms.sh migrate-enclosing-folder.sh new-enclosing-folder.sh fresh-box.sh artifacts-sync glow-pane.sh overwatch; do
         ddst="${HOME}/.local/bin/$dexec"
         dsrc="$HERE/$dexec"
         [ "$dexec" = "new-enclosing-folder.sh" ] && dsrc="$HERE/scaffold/$dexec"
@@ -556,6 +579,6 @@ WARNINGS:
 $warn
 }
 Uninstall: remove the marked block from $OMP_AGENTS, the skill symlinks under
-$OMP_SKILLS and $AGENTS_SKILLS, $SCAFFOLD_DST, $SYNCDST, $FRESHBOX_DST, $ARTDST, $GLOWDST, $OWDST if installed,
+$OMP_SKILLS and $AGENTS_SKILLS, $SCAFFOLD_DST, $MIGF_DST, $SYNCDST, $FRESHBOX_DST, $ARTDST, $GLOWDST, $OWDST if installed,
 and any adapter clone under ~/.omp/adapters/.
 EOF

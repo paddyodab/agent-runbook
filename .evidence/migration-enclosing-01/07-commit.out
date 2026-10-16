@@ -1,0 +1,14 @@
+migrate-enclosing-folder report — /tmp/mig-rollback
+  scaffold source: /home/patdabney/Documents/GitHub/shared-context-behaviors/agent-runbook-next/work/agent-runbook/scaffold/new-enclosing-folder.sh
+  scope: --only comms-protocol
+
+  [drift] comms/session-start.sh — differs from scaffold heredoc
+  [current] comms/session-end.sh
+  [current] comms/glow-pane.sh
+
+comms-protocol: /tmp/mig-rollback/comms/session-start.sh replaced with scaffold-current (named .bak kept)
+comms-protocol: /tmp/mig-rollback/comms/session-end.sh already current
+comms-protocol: /tmp/mig-rollback/comms/glow-pane.sh already current
+comms: reconcile committed (98bd814) — comms history is the rollback
+
+apply done (all requested classes succeeded).

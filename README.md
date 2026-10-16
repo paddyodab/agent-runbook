@@ -54,6 +54,11 @@ comms-lifecycle-test.sh — the comms gate: 32-assertion two-fake-user run in a
 migrate-user-comms.sh — one-command migration of pre-multi-user enclosing folders;
                      also init's comms/ as a git repo + stamps the credential hook
                      on old folders (idempotent)
+migrate-enclosing-folder.sh — report-first reconcile of EXISTING enclosing folders
+                     vs the current scaffold (verdicts per artifact: current /
+                     drift / missing / operator-modified; --apply with --only
+                     classes; comms homes roll forward via comms/ git commits,
+                     root homes keep .bak siblings)
 SMOKE.md          — post-install checklist: prove the toolkit is live in a fresh session
 AGENTS.md         — the marked standing-behavior block install.sh appends to ~/.omp/agent/AGENTS.md
 intent-shared-comms.md — the multi-user comms unit's contract (sealed intent);

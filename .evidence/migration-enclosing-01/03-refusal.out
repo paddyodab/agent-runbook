@@ -1,0 +1,9 @@
+migrate-enclosing-folder report — /tmp/mig-opmod
+  scaffold source: /home/patdabney/Documents/GitHub/shared-context-behaviors/agent-runbook-next/work/agent-runbook/scaffold/new-enclosing-folder.sh
+  scope: --only agents
+
+  [operator-modified] /tmp/mig-opmod/AGENTS.md — standing-section hand-edit not derivable from scaffold
+
+agents: REFUSED — standing-section hand-edit (operator-modified); hatch: --only agents --force-section (a .bak is still written)
+
+apply done (SOME CLASSES FAILED — see refusals above; each names its hatch).
