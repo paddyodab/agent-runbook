@@ -64,10 +64,12 @@ invitation to ride-along-code the unit.
 **Work copies (the "work" folder).** Prior-art clones are read-only reference; when a
 ticket needs changes to a studied repo, clone it to a sibling `work/` folder at the
 enclosing-folder root (`work/<repo>`), do all edits and commits there, and never write
-into `prior-art/`. When the operator names a repo to work on, create/open
-`work/<repo>` without being asked again — and if that repo is already cloned in
-`prior-art/`, still keep the edit copy under `work/`. Honor operator instructions about
-folder layout ("you'll need to create a work folder") as acceptance criteria, not
+into `prior-art/`. A work copy is always a fresh `git clone` from the repo's source
+(origin on GitHub) — never a copy of, or a clone from, the `prior-art/` checkout;
+prior-art exists for ease of reference only. When the operator names a repo to work on,
+create/open `work/<repo>` without being asked again — and if that repo is already cloned
+in `prior-art/`, still keep the edit copy under `work/`. Honor operator instructions
+about folder layout ("you'll need to create a work folder") as acceptance criteria, not
 suggestions: if one was missed, say so and create it before starting the ticket.
 
 **Branch policy: feature-branch work, never main.** Every change to a `work/<repo>`
