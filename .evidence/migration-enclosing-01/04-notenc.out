@@ -1,0 +1,1 @@
+migrate-enclosing-folder: /tmp/mig-notenc/comms lacks session-start.sh — not an enclosing folder; run inside one (or pass its path). To CREATE one, run new-enclosing-folder.sh.

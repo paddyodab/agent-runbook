@@ -501,6 +501,41 @@ no node is special. Session boundaries are the only sync firing points.
   existing work copies (rule binds new clones; origin, not a github.com host check).
 - **Depends on:** nothing (rule text only, work-branch-policy-01 shape).
 
+### Unit migration-enclosing-01 — reconcile existing enclosing folders with the current scaffold (20261016-01)
+
+- **Problem:** the scaffold stamps current artifacts only at creation; folders
+  scaffolded at older evolutions drift silently (standing rules, comms scripts,
+  templates, hook, .gitignore rules). migrate-user-comms.sh owns the comms tier
+  (layout + scripts + hook init) but not the enclosing ROOT, mutates immediately,
+  and never says WHAT is stale. Operator ask (20261016-01): a migration tool.
+- **Outcome:** `migrate-enclosing-folder.sh` (runbook root, PATH-gate installed):
+  report-first (per-artifact verdicts; zero mutation byte-proven), `--apply` with
+  `--only agents|readme|comms-protocol|comms-readme|templates|hook|.gitignore|dirs`.
+  Verdict split is LIVE-OWNERSHIP-based: AGENTS body = scaffold-owned (drift when
+  live lost scaffold lines → apply restores, live slug heading preserved;
+  operator-modified when live carries non-derivable content → --force-section).
+  README = live-owned identity (slug/PURPOSE/tree) — current or operator-modified
+  only (boring choice; no clobbering curated prose). comms homes: applied via a
+  git -C comms commit naming the source scaffold (history IS the rollback);
+  refusals: unsealed draft (session folders untouched, ever), comms/ with modified
+  tracked files, non-enclosing folder, unknown class, no-scaffold source
+  (comms-tree fallback = report only). Flat-layout detection points at
+  migrate-user-comms.sh (no fork).
+- **Proof obligations:** junk all-current (every verdict current, rc 0, byte-identical
+  before/after), stale fixture (degraded AGENTS/README/rm hook → named verdicts;
+  apply fixes named classes; comms rollback commit present), operator-modified AGENTS
+  arm (apply refuses, .bak+force path), non-enclosing refusal, unsealed-draft
+  refusal, gate 33/33 host (fixture = live root + junk builds) + bash:3.2 syntax on
+  the edited scripts, installer doctor dexec parity row green after cutover.
+- **Contexts touched:** new migrate-enclosing-folder.sh, install.sh (classic
+  PATH-gate + doctor dexec row + uninstall line), README tool-tree row, ROADMAP.
+- **NOT:** no scaffold heredoc changes, no session-start/end logic changes, no
+  comms-tier fork (delegation to migrate-user-comms.sh), no remote wiring, no
+  pushes, no auto-migration sweep across folders (per-folder, operator-run),
+  no session-folder mutation, no merge-assist UI.
+- **Depends on:** nothing new (migrate-user-comms.sh, install.sh dexec pattern,
+  scaffold heredocs exist).
+
 ## Sequencing & lanes
 
 1 → 2 → (3 ∥ 4) → D; unit 5 (fresh-box, 20260930) is independent —

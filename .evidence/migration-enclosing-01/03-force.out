@@ -1,0 +1,9 @@
+migrate-enclosing-folder report — /tmp/mig-opmod
+  scaffold source: /home/patdabney/Documents/GitHub/shared-context-behaviors/agent-runbook-next/work/agent-runbook/scaffold/new-enclosing-folder.sh
+  scope: --only agents
+
+  [operator-modified] /tmp/mig-opmod/AGENTS.md — standing-section hand-edit not derivable from scaffold
+
+agents: stamped current (live heading preserved; .bak-20261016145539 beside it)
+
+apply done (all requested classes succeeded).

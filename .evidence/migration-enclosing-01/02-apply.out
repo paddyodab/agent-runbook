@@ -1,0 +1,32 @@
+migrate-enclosing-folder report — /tmp/mig-stale
+  scaffold source: /home/patdabney/Documents/GitHub/shared-context-behaviors/agent-runbook-next/work/agent-runbook/scaffold/new-enclosing-folder.sh
+
+  [drift] /tmp/mig-stale/AGENTS.md — body differs (live heading preserved on apply)
+  [current] /tmp/mig-stale/README.md
+  [drift] comms/session-start.sh — differs from scaffold heredoc
+  [current] comms/session-end.sh
+  [current] comms/glow-pane.sh
+  [current] comms/README.md
+  [current] comms/templates/session-handoff.md
+  [current] comms/templates/conversation.md
+  [current] comms/templates/preamble.txt
+  [missing] comms/hooks/pre-push — (tracked copy; active stamp checked too)
+  [drift] comms/.git/hooks/pre-push — active stamp differs from tracked copy
+  [current] comms/.gitignore
+  [current] /tmp/mig-stale/prior-art — (exists)
+  [current] /tmp/mig-stale/artifacts — (exists)
+  [current] /tmp/mig-stale/work — (exists)
+
+agents: stamped current (live heading preserved; .bak-20261016145538 beside it)
+readme: already current
+comms-protocol: /tmp/mig-stale/comms/session-start.sh replaced with scaffold-current (named .bak kept)
+comms-protocol: /tmp/mig-stale/comms/session-end.sh already current
+comms-protocol: /tmp/mig-stale/comms/glow-pane.sh already current
+comms-readme: /tmp/mig-stale/comms/README.md already current
+templates: comms/templates/session-handoff.md already current
+templates: comms/templates/conversation.md already current
+hook: stamped tracked + active copies from scaffold HOOK heredoc
+.gitignore: already current
+comms: reconcile committed (a889cf9) — comms history is the rollback
+
+apply done (all requested classes succeeded).
