@@ -478,6 +478,29 @@ no node is special. Session boundaries are the only sync firing points.
 - **Done when:** merged via PR #11 (main @ `ec7beba`); regression duty this
   unit and the next re-prove the gate green both interpreters.
 
+### Unit work-clone-source-01 — work copies always clone from the source (GitHub) (20261016-01)
+
+- **Problem:** the work-copies convention names WHERE a `work/<repo>` copy lives but
+  never WHERE it comes from; an agent could `cp -r` or clone from the local
+  `prior-art/<repo>` checkout — stale/dirty state — instead of the origin. Operator
+  ask (preamble 20261016-01): work-folder git clones always come from the source
+  (GitHub); prior-art is for ease of reference.
+- **Outcome:** one clause in every home of the rule, all in one diff: "a work copy is
+  always a fresh `git clone` from the repo's origin (GitHub) — never a copy of or a
+  clone from the `prior-art/` checkout; prior-art is reference-only." Touched: runbook
+  AGENTS.md marked block, scaffold AGENTS heredoc, live enclosing AGENTS.md +
+  README.md bullets, scaffold README heredoc + CONVENTION var, kit payload regen.
+- **Proof obligations:** paragraph cmp-parity runbook AGENTS ↔ scaffold heredoc;
+  scaffold AGENTS heredoc ↔ live enclosing AGENTS (slug-substituted cmp); junk build
+  carries the clause; lifecycle gate green host + bash:3.2 docker; installer+kit
+  cutover with doctor honest.
+- **Contexts touched:** runbook AGENTS.md, scaffold AGENTS heredoc, scaffold README
+  heredoc + CONVENTION, this enclosing folder's AGENTS.md + README.md, ROADMAP,
+  kit/omp payload.
+- **NOT:** no script logic changes; no enforcement hook; no retroactive re-clone of
+  existing work copies (rule binds new clones; origin, not a github.com host check).
+- **Depends on:** nothing (rule text only, work-branch-policy-01 shape).
+
 ## Sequencing & lanes
 
 1 → 2 → (3 ∥ 4) → D; unit 5 (fresh-box, 20260930) is independent —

@@ -22,7 +22,9 @@ evidence, source digests — write `mind/NNN-slug.md` instead: one topic per not
 numbered in the order you thought them, next to the conversation if a comms session
 folder exists (`comms/<user>/<YYYYMMDD>-<NN>/mind/`), else `.mind/` in the repo
 (gitignore it). Notes are the raw feed, not the record: durable conclusions get
-promoted into the session's artifacts/handoff.
+promoted into the session's artifacts/handoff. Display: `./comms/glow-pane.sh <file>`
+opens it rendered in a herdr `glow:` pane (agent-runbook convention); cite as
+`m:NNN`.
 
 **Eng playbooks (how engineering work runs).** Load the `eng-playbooks` skill before
 any engineering work (its triggers are any of: new app, existing repo, refactor, or
@@ -57,11 +59,20 @@ invitation to ride-along-code the unit.
 **Work copies (the "work" folder).** Prior-art clones are read-only reference; when a
 ticket needs changes to a studied repo, clone it to a sibling `work/` folder at the
 enclosing-folder root (`work/<repo>`), do all edits and commits there, and never write
-into `prior-art/`. When the operator names a repo to work on, create/open
-`work/<repo>` without being asked again — and if that repo is already cloned in
-`prior-art/`, still keep the edit copy under `work/`. Honor operator instructions about
-folder layout ("you'll need to create a work folder") as acceptance criteria, not
+into `prior-art/`. A work copy is always a fresh `git clone` from the repo's source
+(origin on GitHub) — never a copy of, or a clone from, the `prior-art/` checkout;
+prior-art exists for ease of reference only. When the operator names a repo to work on,
+create/open `work/<repo>` without being asked again — and if that repo is already cloned
+in `prior-art/`, still keep the edit copy under `work/`. Honor operator instructions
+about folder layout ("you'll need to create a work folder") as acceptance criteria, not
 suggestions: if one was missed, say so and create it before starting the ticket.
+
+**Branch policy: feature-branch work, never main.** Every change to a `work/<repo>`
+checkout lands on a feature branch (`feature/<unit-or-slug>`), created before the first
+edit; commit on the branch, never on `main`/`master`. Merge to main is the operator's
+deliberate act (push + PR, or an explicit local merge they request) — never an agent's
+own initiative. Other repos under `work/` may carry stricter branch rules; this is the
+floor, baked in at scaffold time.
 
 **Proven-fix finish line.** A fix is not done when it compiles or tests pass locally.
 When a change is proven (repro gone, tests green), stop and offer the operator the

@@ -27,7 +27,7 @@ cleanup() { rm -rf "$STAGE"; }
 trap cleanup EXIT
 
 # static "Folder convention" code block (prior-art / built repos are added later, not at scaffold time)
-CONVENTION=$'  README.md              <- this file: the folder\'s purpose + conventions\n  comms/                 <- agent/operator conversations and session handoffs (see comms/README.md)\n  work/                  <- edit copies of prior-art repos (work/<repo>), created when a ticket needs changes. All edits + commits land here; prior-art/ stays untouched.\n  artifacts/             <- project-scoped reference material (PDFs, decks, dumps, downloads). Named-by-hand access only: never globbed, never auto-read, never in a reading manifest unless a handoff names the exact file.\n  prior-art/             <- repos we are studying and using for examples (their code; their own git). Read only when directed. Clones here are made read-only: reference, never a work target.\n  <built-repo>/          <- a repo we generate from this work (our code; tracked in git). Created later, once we start building.'
+CONVENTION=$'  README.md              <- this file: the folder\'s purpose + conventions\n  comms/                 <- agent/operator conversations and session handoffs (see comms/README.md)\n  work/                  <- edit copies of prior-art repos (work/<repo>), created when a ticket needs changes. The work copy is always a fresh git clone from its origin (GitHub), never a copy of or a clone from the prior-art checkout. All edits + commits land here; prior-art/ stays untouched.\n  artifacts/             <- project-scoped reference material (PDFs, decks, dumps, downloads). Named-by-hand access only: never globbed, never auto-read, never in a reading manifest unless a handoff names the exact file.\n  prior-art/             <- repos we are studying and using for examples (their code; their own git). Read only when directed. Clones here are made read-only: reference, never a work target.\n  <built-repo>/          <- a repo we generate from this work (our code; tracked in git). Created later, once we start building.'
 
 finish() {
   # slug substitution (portable: no in-place sed), exec bits, then the atomic move
@@ -106,7 +106,7 @@ $CONVENTION
 
 ## This folder
 - Prior-art repos are cloned into \`prior-art/\` as needed and made read-only on arrival; repos we build are created at the root later, once study and conversation justify it. Reference material (PDFs, decks) lands in \`artifacts/\`, not comms.
-- Repos from prior-art that a ticket needs changed are cloned to \`work/<repo>\` and edited there — never write into \`prior-art/\`. Honor operator instructions about folder layout as acceptance criteria.
+- Repos from prior-art that a ticket needs changed are cloned to \`work/<repo>\` and edited there — never write into \`prior-art/\`. The work copy is always a fresh \`git clone\` from the repo's source (origin on GitHub), never a copy of or a clone from the prior-art checkout. Honor operator instructions about folder layout as acceptance criteria.
 - Multi-agent parallel work happens in git worktrees of a built repo (\`git worktree add ../<repo>-lane-N\` from the built repo), not by writing into prior-art clones.
 - Session lifecycle: \`./comms/session-start.sh\` to begin or resume (\`--resume\` for same-day continuation), \`./comms/session-end.sh\` to seal the handoff at session end.
 - \`session-start.sh\` refreshes every \`prior-art/\` repo from origin at session start (fetch + ff-only pull, fail-soft): reference stays current. Dirty or diverged clones are named in the intro and left alone — resolving them is a deliberate act, never automatic.
@@ -1278,7 +1278,9 @@ and its `pre-push` hook refuses credential-shaped material; the escape is
 
 Standing access rules: `prior-art/` clones are read-only reference — read named files when
 directed, never scan, never write (a work copy of anything lives at the folder root). Ticket
-work that changes a studied repo clones it to `work/<repo>` at the folder root and edits there.
+work that changes a studied repo clones it to `work/<repo>` at the folder root and edits there;
+the work copy is always a fresh `git clone` from the repo's source (origin on GitHub), never a
+copy of or a clone from the `prior-art/` checkout.
 `artifacts/` holds reference material (PDFs, decks, exports): open only when the operator or a
 handoff names the exact file, never scan it, never commit it.
 
