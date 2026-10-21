@@ -536,6 +536,33 @@ no node is special. Session boundaries are the only sync firing points.
 - **Depends on:** nothing new (migrate-user-comms.sh, install.sh dexec pattern,
   scaffold heredocs exist).
 
+### Unit session-resume-own-01 — fresh start resumes from the caller's own newest sealed handoff
+
+- **Problem:** `session-start.sh` (scaffold heredoc) treats the highest `YYYYMMDD-NN`
+  across all users as the resume source. User name breaks a date-seq tie. Seal time
+  is ignored. The header said "the caller's newest first"; the code did not. On a
+  shared folder that hands Pat Dustin's later sequence, ignores a handoff `session-end`
+  just called canonical, and warns one user about the other's open draft.
+- **Outcome:** fresh start resumes from the caller's own newest sealed handoff.
+  Other users' newest sealed handoffs are listed as reading. A caller with no sealed
+  handoff starts a first session and does not adopt a colleague's file as prior
+  state. `session-end` says whose newest sealed handoff this is (or names the newer
+  one that remains). Date-seq order and the user-name tie-breaker are unchanged
+  (fence from `session-start-own-sealed-01` respected; the "newest anywhere wins"
+  resume claim is the part revisited).
+- **Proof obligations:** cases A–D red on the pre-fix scripts and green after;
+  reading-list order still date-seq then user name; own-draft fallback stays on the
+  caller's own sealed handoff; heredoc extraction `cmp`s the scaffolded scripts and
+  `glow-pane.sh`; lifecycle gate 45/45 on bash 5.3 and bash 3.2.
+- **Contexts touched:** `scaffold/new-enclosing-folder.sh` (session-start, session-end,
+  both README heredocs, enclosing AGENTS heredoc), `comms-lifecycle-test.sh`,
+  README.md, machine.md, ROADMAP, `.evidence/session-resume-own-01/`.
+- **NOT:** no re-sort of date-seq or the user-name tie-breaker; no mtime ordering;
+  no change to which folder `--resume` opens; no seal-completeness, ledger, or
+  template-section changes.
+- **Done when:** `.evidence/session-resume-own-01/` holds the red transcript, both
+  gates, INTENT, and PROOF.
+
 ## Sequencing & lanes
 
 1 → 2 → (3 ∥ 4) → D; unit 5 (fresh-box, 20260930) is independent —

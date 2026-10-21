@@ -353,27 +353,32 @@ old address; new appends key on the new one).
 
 Session protocol on the box (what changes for the users): `cd /srv/<slug>` first;
 `./comms/session-start.sh` keys sessions to your OS user automatically
-(`comms/<user>/<YYYYMMDD>-<NN>/`). Canonical state is CROSS-USER: newest sealed handoff
-anywhere in `comms/` is what the next session resumes from — ordered by DATE-SEQ across
-users, never by user name (same date-seq from different users = deterministic user-name
-tie-breaker, documented in comms/README.md; NOT chronology). Ledger is per-user; a
-cross-user seal writes the digest to the SEALING user's ledger. Smoke (both users):
+(`comms/<user>/<YYYYMMDD>-<NN>/`). A fresh session resumes from **your** newest sealed
+handoff (date-seq within your folder; seal time is not a key). Other users' newest
+sealed handoffs are listed as reading. The same date-seq from different users is a
+user-name tie-break on that list (documented in comms/README.md; a tie-breaker, NOT
+chronology). A user with no sealed handoff of their own starts a first session;
+colleagues' handoffs stay on the reading list and are not adopted as prior state.
+Ledger is per-user; a cross-user seal writes the digest to the SEALING user's ledger
+and does not claim the sealed file is everyone else's resume source. Smoke (both users):
 fresh start → intro names `comms/<user>/<today>-01`; the OTHER user can still
 fresh-start while yours is open; bare seal with no session of your own refuses naming
 the prefixed salvage command.
 
-Acceptance on the host: `./comms-lifecycle-test.sh /srv/<slug>` — 32 assertions in a
+Acceptance on the host: `./comms-lifecycle-test.sh /srv/<slug>` — 45 assertions in a
 disposable /tmp fixture staged from the folder's comms/ scaffold (the run never
-mutates the named folder — live ones are safe to point at), incl. the cross-user
-CHRONOLOGY scenario: a late-alphabet user's older handoff must lose to an
-early-alphabet user's newer one — the path-sort regression the pre-AWS probe
-caught — and the comms-as-git tier (valid repo + credential hook fires). If
-seeding from an existing folder instead of fresh scaffolding, run
-`./migrate-user-comms.sh /srv/<slug>` first.
+mutates the named folder — live ones are safe to point at), incl. cases A–D (resume
+from the caller's own newest sealed handoff, not the cross-user date-seq maximum)
+and the reading-list order check: a late-alphabet user's older handoff sorts before
+an earlier-alphabet user's newer one — the path-sort regression the pre-AWS probe
+caught; the comparator was not re-sorted — and the comms-as-git tier (valid repo +
+credential hook fires). If seeding from an existing folder instead of fresh
+scaffolding, run `./migrate-user-comms.sh /srv/<slug>` first.
 
 Protocol proofs: `./comms-lifecycle-test.sh <enclosing-folder>` (two fake users,
-32 assertions, disposable /tmp fixture; green on bash 5.3 host and stock bash 3.2
-in docker), evidence in `.evidence/shared-comms-01/` and `.evidence/comms-git-0N/`.
+45 assertions, disposable /tmp fixture; green on bash 5.3 and stock bash 3.2),
+evidence in `.evidence/shared-comms-01/`, `.evidence/comms-git-0N/`, and
+`.evidence/session-resume-own-01/`.
 
 Not covered here (deliberate): **S3 as the live filesystem** — the comms protocol is
 POSIX (find/grep/mv/awk, setgid, chmod, OS-user attribution) and an object store has

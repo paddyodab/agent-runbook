@@ -46,7 +46,7 @@ install.sh        — classic (this tree) and --machine (manifest-driven) modes,
                      plus --doctor (read-only: deps/adapter/secrets in machine
                      mode; skills×2 roots, AGENTS block parity, scaffold/migrator
                      parity + everything above in machine mode — both modes)
-comms-lifecycle-test.sh — the comms gate: 32-assertion two-fake-user run in a
+comms-lifecycle-test.sh — the comms gate: 45-assertion two-fake-user run in a
                      disposable /tmp fixture staged from the named folder's comms/
                      scaffold (live enclosing folders are safe to point at); §11
                      proves the comms-as-git tier (valid repo + credential pre-push
@@ -178,19 +178,21 @@ live in a fresh session. If all pass, the agent behaves; no prior context needed
 For the machine/fresh-box path, the equivalent is `./sandbox-test.sh` (docker) plus the
 machine checks in [machine.md](machine.md). Existing enclosing folders predating the
 multi-user layout migrate with `./migrate-user-comms.sh <folder>` (idempotent); the
-comms protocol's own gate is `./comms-lifecycle-test.sh <folder>` — 32 assertions in
+comms protocol's own gate is `./comms-lifecycle-test.sh <folder>` — 45 assertions in
 a disposable /tmp fixture (green on bash 5.3 and stock bash 3.2); pointing it at a
 live enclosing folder is safe by construction, it never mutates what you name.
 
 ## Shared-context box (multi-user)
 
 For one box shared by several users over SSH/herdr (AWS or any Linux server): the comms
-protocol is **user-keyed** — `comms/<user>/<YYYYMMDD>-<NN>/` — with a cross-user
-canonical state (newest sealed handoff anywhere wins). Deployment runbook: the
+protocol is **user-keyed** — `comms/<user>/<YYYYMMDD>-<NN>/`. A fresh session resumes
+from the caller's own newest sealed handoff. Other users' newest sealed handoffs are
+listed as reading, not adopted as prior state. Deployment runbook: the
 "Shared-context box" section of [machine.md](machine.md). Protocol proofs:
-`./comms-lifecycle-test.sh <enclosing-folder>` (two fake users, 32 assertions, run
+`./comms-lifecycle-test.sh <enclosing-folder>` (two fake users, 45 assertions, run
 in a disposable /tmp fixture — the named folder is only read; green on bash 5.3 and
-stock bash 3.2), evidence in `.evidence/shared-comms-01/`.
+stock bash 3.2), evidence in `.evidence/shared-comms-01/` and
+`.evidence/session-resume-own-01/`.
 
 ## Comms-as-git (transport tier)
 

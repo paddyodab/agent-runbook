@@ -96,8 +96,10 @@ $CONVENTION
 
 1. Read this \`README.md\` first for the purpose and conventions of this folder.
 2. Run \`./comms/session-start.sh\` (from this folder root) — it prints the reading manifest:
-   \`comms/README.md\` then the newest **sealed** \`comms/<user>/<YYYYMMDD>-<NN>/session-handoff.md\`.
-   Those are the only comms files to read at session start. The newest sealed handoff is canonical state.
+   \`comms/README.md\`, then your newest sealed \`comms/<user>/<YYYYMMDD>-<NN>/session-handoff.md\`
+   (what this session resumes from), then other users' newest sealed handoffs as reading.
+   Those are the only comms files to read at session start. A user with no sealed handoff
+   of their own starts a first session; colleagues' handoffs stay on that reading list.
 4. \`prior-art/\` is reference material. Read a file from it **only** when a handoff, conversation, or the operator directs you to that specific file — do not scan or index prior-art by default. Prior-art clones are read-only: if a write there is needed, stop and ask; the work copy lives at the folder root.
 5. \`artifacts/\` is reference material the operator dropped or directed. Same access rule: named files only, never a directory scan. It is not comms history and not prior-art — it is source material for the work.
 6. Work lands in the built repo(s); conversation/handoffs land in \`comms/\`. Don't commit \`prior-art/\`, \`artifacts/\`, or the enclosing folder itself. (\`comms/\` is its own git repo — its commits stay inside \`comms/\`.)
@@ -128,11 +130,12 @@ prose an agent is trusted to remember.
 ```text
 operator / agent          what happens
 ------------------------  -----------------------------------------------------------
-./comms/session-start.sh  finds the newest SEALED handoff (canonical state — the
-                           caller's own newest first, then across all users),
+./comms/session-start.sh  resumes from the caller's own newest SEALED handoff,
+                           lists other users' newest sealed handoffs as reading,
                            creates comms/<user>/<YYYYMMDD>-<NN>/ from templates,
-                           prints the reading manifest (README + that handoff only)
-                           (no handoffs at all → bootstraps the folder's first session)
+                           prints that reading manifest
+                           (no sealed handoff of your own → your first session;
+                           no handoffs at all → bootstraps the folder's first session)
         ... session ...
 ./comms/session-end.sh    verifies the handoff is section-complete, appends methodology
                            findings to ~/.agent/learnings.md, deletes the SEAL block
@@ -140,9 +143,13 @@ operator / agent          what happens
 
 - **Sessions are keyed by OS user** (`comms/<user>/<YYYYMMDD>-<NN>/`). Attribution is
   structural, sequence numbers are per-user, and mind notes nest per user
-  (`comms/<user>/<sess>/mind/`). The CANONICAL STATE is cross-user: the newest sealed
-  handoff anywhere in `comms/` is what the next session resumes from, whoever wrote it —
-  that is the shared context working.
+  (`comms/<user>/<sess>/mind/`). A fresh session resumes from the **calling user's own
+  newest sealed handoff**. Other users' newest sealed handoffs are listed in the reading
+  manifest (shared context — reading, not your prior state). A user with no sealed
+  handoff of their own starts a first session; colleagues' sealed handoffs stay visible
+  as reading and are not adopted as the resume source. Ordering within a user, and the
+  order of that reading list, is DATE-SEQ; the same date-seq from different users is a
+  tie broken by user name (a tie-breaker, not chronology, and not seal time).
 - **`session-start.sh --resume`** reuses the calling user's newest session folder (same-day
   continuation). Also the crash-recovery hatch: after a wedged agent or lost terminal it
   reopens the user's folder with nothing lost (`conversation.md` is append-only). If the
@@ -185,9 +192,10 @@ operator / agent          what happens
   `overwatch rebuild` — never cron/watch. `overwatch` absent → one intro line, rc
   unchanged; the protocol does not depend on it.
 - **Unsealed handoffs are drafts.** The template ships with a `<!-- SEAL: delete this line -->`
-  marker; until `session-end.sh` removes it, the file is not canonical, and `session-start.sh`
-  will fall back to the newest *sealed* handoff. A session that dies mid-handoff can't poison
-  the next session's context.
+  marker; until `session-end.sh` removes it, the file is not a resume source. Your own newer
+  unsealed draft is named, and the resume falls back to **your** newest sealed handoff.
+  Another user's draft does not warn you and does not change what you resume from. A session
+  that dies mid-handoff can't poison the next session's context.
 - **`~/.agent/learnings.md` is the global ledger.** `session-end.sh` copies the session's
   methodology findings there, so cross-project rules survive past the enclosing folder. A
   session that reopened a sealed handoff and grew its findings re-seals with a **delta append**
@@ -196,7 +204,7 @@ operator / agent          what happens
   alongside the CALLING USER's still-unsealed session → hard error, not a silent default
   (another user's open session never blocks you). No handoffs at all bootstraps the first
   session; unsealed-only history is named explicitly in the intro, never silently treated
-  as canonical.
+  as a resume source.
 
 ## When things go wrong (escape hatches)
 
@@ -208,9 +216,10 @@ and none of them loses work.
   (it reopens the calling user's newest). A resumed sealed folder may be appended to, not
   rewritten; for a fresh session run the script without `--resume` on a later day.
 - **A session dies mid-handoff** (handoff written but never sealed): the SEAL marker makes
-  it a draft. The next `session-start.sh` names it as unsealed and falls back to the newest
-  *sealed* handoff — a dead session cannot poison the next one. Salvage: finish the draft and
-  run `./comms/session-end.sh`. Discard: delete the folder and re-run `session-start.sh`.
+  it a draft. Your next `session-start.sh` names your unsealed draft and resumes from your
+  newest sealed handoff — a dead session cannot poison the next one. Another user's draft
+  does not. Salvage: finish the draft and run `./comms/session-end.sh`. Discard: delete the
+  folder and re-run `session-start.sh`.
 - **A session crosses midnight unsealed** (work past 00:00, or you return the next day to a
   draft): nothing strands. `--resume` reopens the user's newest earlier-day folder — append,
   don't rewrite — and `./comms/session-end.sh <user>/<YYYYMMDD>-<NN>` seals it by name (a
@@ -257,12 +266,14 @@ comms/
   zero-padded sequence number for that day, per user (e.g. `comms/pd/20260810-01`,
   `comms/dw/20260810-01`, `comms/pd/20260810-02`). `session-start.sh` derives both the
   user and the sequence automatically.
-- The canonical handoff chain is CROSS-USER: the newest sealed `session-handoff.md`
-  anywhere under `comms/` is the state the next session resumes from. Ordering is by
-  DATE-SEQ across users, never by user name; two sessions with the SAME date-seq
-  from different users are a genuine tie, broken deterministically by user name
-  (after date-seq equality — this is a tie-breaker, NOT chronology). Never edit a
-  past handoff in place — write a new one in your own new session's folder.
+- The resume source is the caller's own newest sealed `session-handoff.md`. Other
+  users' newest sealed handoffs are reading. Ordering is by DATE-SEQ; two sessions
+  with the SAME date-seq from different users are ordered by user name (after
+  date-seq equality — a tie-breaker, NOT chronology, and NOT seal time). That
+  ordering was not re-sorted when the resume source became per-user: it still
+  defines "newest" and the reading-list order. It does not pick one cross-user
+  resume target. Never edit a past handoff in place — write a new one in your own
+  new session's folder.
 - On a shared box, file ownership must not block the protocol: the group needs rwX on
   `comms/` (setgid dirs + `umask 002`), so either user can create/seal sessions. See the
   enclosing folder's README/deployment notes for the group setup.
@@ -273,8 +284,10 @@ comms/
 ## How to resume a new session
 
 1. Run `./comms/session-start.sh` (from the enclosing folder root). It prints the reading
-   manifest: this `README.md`, then the newest sealed `session-handoff.md` — the **only**
-   comms files a fresh session reads.
+   manifest: this `README.md`, then your newest sealed `session-handoff.md` (the resume
+   source), then other users' newest sealed handoffs as reading. A caller with no sealed
+   handoff of their own is told this is their first session; the colleagues' files stay
+   on the list. Those are the **only** comms files a fresh session reads.
 2. Read only what the handoff's **"How to resume"** section names. Old days stay closed
    unless that handoff or the operator opens them: a decision made and later abandoned on
    an earlier day must not re-enter context.
@@ -283,9 +296,10 @@ comms/
    `./comms/session-end.sh`.
 
 The `session-handoff.md` is the load-bearing artifact for continuity. Each session produces
-one in its own folder; the newest sealed one is canonical (across all users). Do not edit a
-past handoff in place — write a new one in your own new session's folder so the history of
-state stays traceable.
+one in its own folder; your newest sealed one is what your next session resumes from.
+Other users' newest sealed handoffs are listed as reading. Do not edit a past handoff in
+place — write a new one in your own new session's folder so the history of state stays
+traceable.
 
 ## The handoff contract (what each section is for)
 
@@ -380,23 +394,33 @@ PROTOCOL
 cat > "$TARGET/comms/session-start.sh" <<'SCRIPT_EOF'
 #!/usr/bin/env bash
 # session-start.sh — enclosing-folder session intro.
-# Creates (or reuses) the calling user's session folder from templates, resolves the
-# newest SEALED session-handoff to resume from (the caller's newest first; across all
-# users when the caller has none), and prints the reading manifest. Run this from the
-# enclosing-folder root before opening an agent session (or first thing inside one).
-# On a fresh folder with no handoffs at all, bootstraps the first session instead of
-# failing.
+# Creates (or reuses) the calling user's session folder from templates and prints
+# the reading manifest. Run this from the enclosing-folder root before opening an
+# agent session (or first thing inside one). On a fresh folder with no handoffs
+# at all, bootstraps the first session instead of failing.
+#
+# Fresh start (no --resume) resumes from the CALLING user's own newest SEALED
+# handoff. "Newest" is date-seq order within that user's folder (YYYYMMDD-NN).
+# Seal time is not an ordering key. Other users' newest sealed handoffs are
+# listed as reading (shared context); they are not the resume source. A caller
+# with no sealed handoff of their own starts their first session — colleagues'
+# sealed handoffs stay on the reading list and are not adopted as prior state.
+#
+# Date-seq ordering and its tie-breaker are unchanged: handoffs sort by date-seq,
+# and the same date-seq from different users is ordered by user name (only after
+# date-seq equality — a deterministic tie-breaker, NOT chronology). That order
+# defines "newest" within a user and the order of the reading list. It does not
+# elect a single cross-user resume target.
 #
 # Multi-user layout (shared-context box): sessions are keyed by Linux user —
 #   comms/<user>/<YYYYMMDD>-<NN>/
 # so attribution is structural and sequence numbers stay per-user. On a single-user
-# box this is the degenerate case: everything lives under comms/<that-user>/. The
-# CANONICAL STATE stays cross-user: the newest sealed handoff anywhere in comms/ is
-# what a fresh session resumes from, whoever wrote it.
+# box this is the degenerate case: everything lives under comms/<that-user>/.
 #
 # Portable: runs on stock macOS bash 3.2 — no mapfile, no negative array indices,
-# no in-place sed. The ${a[@]+"${a[@]}"} idiom iterates a possibly-empty array
-# safely under set -u on bash < 4.4 (where "" on an empty array is an error).
+# no associative arrays, no in-place sed. The ${a[@]+"${a[@]}"} idiom iterates a
+# possibly-empty array safely under set -u on bash < 4.4 (where "" on an empty
+# array is an error).
 #
 # Usage: ./comms/session-start.sh [--resume]
 #   --resume   reuse the calling user's newest session folder instead of creating
@@ -405,7 +429,8 @@ cat > "$TARGET/comms/session-start.sh" <<'SCRIPT_EOF'
 #              the user has no session folder, falls back to their newest from an
 #              earlier day (cross-midnight continuation); if the user has none at
 #              all, falls back to the newest SEALED handoff across ALL users —
-#              the cross-user shared context — with a loud note. Append, don't rewrite.
+#              an explicit continuation into that folder, not the fresh-start
+#              rule — with a loud note. Append, don't rewrite.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -430,8 +455,9 @@ RESUME="${1:-}"
 
 TODAY="$(date +%Y%m%d)"
 # session folders anywhere under comms/ (comms/<user>/<date>-<seq>). Listed as
-# "date-seq <tab> path" pairs so ordering is by date-sequence across users, never
-# by user name; sed keeps it bash-3.2-safe. `|| true` as above: comms/ itself is
+# "date-seq <tab> user/date-seq" so the primary key is date-seq, never user name.
+# An equal date-seq ties on the second field (user name) — a tie-breaker, not
+# chronology. sed keeps it bash-3.2-safe. `|| true` as above: comms/ itself is
 # absent in a fresh scaffold before the first session.
 list_sessions() {
   { find "$COMMS" -mindepth 3 -maxdepth 3 -type d -name '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9]' 2>/dev/null || true; } \
@@ -460,9 +486,11 @@ if [[ "$RESUME" == "--resume" ]]; then
       echo "note: no session folder from today ($TODAY-*) under comms/$USER_NAME/ — resuming comms/$OWN_LAST, the caller's newest from an earlier day (cross-midnight continuation; append, don't rewrite)" >&2
     fi
   else
-    # The caller has no sessions anywhere: cross-user continuation. Newest sealed
-    # handoff across ALL users is canonical state — resume from it (append, don't
-    # rewrite; you are appending to a colleague's record, so say what YOU did).
+    # The caller has no sessions anywhere: explicit cross-user continuation
+    # (--resume only). Opens the newest sealed handoff across users (date-seq,
+    # user-name tie-break). Append, don't rewrite; say what YOU did. This is not
+    # the fresh-start rule — a fresh start with no sealed handoff of your own
+    # creates your first folder instead of adopting a colleague's.
     SESS_REL="$(list_sessions | tail -n 1 | awk -F'\t' '{print $2}')"
     [[ -n "$SESS_REL" ]] || die "--resume: no session folder at all to reuse (none from $USER_NAME, none from anyone) — start a fresh one without --resume"
     if ! grep -qF "$SEAL" "$COMMS/$SESS_REL/session-handoff.md" 2>/dev/null; then
@@ -498,13 +526,15 @@ else
 fi
 SESS="$USER_NAME/$SESS_REL"
 
-# --- resolve the sealed handoff to resume from ----------------------------------
-# Our own folder's draft never counts. Newest sealed wins — ordered by DATE-SEQ
-# across users (a plain path sort would order user-first, letting an older handoff
-# from a late-alphabet user beat a newer one; regression-tested in the lifecycle
-# suite's different-date scenario). Unsealed drafts are skipped — a session that
-# died mid-handoff must not poison the next session's context. With no sealed
-# handoff at all, say so instead of guessing.
+# --- resolve what this session resumes from, and what else is reading -----------
+# Resume source: the caller's own newest SEALED handoff (date-seq within that
+# user). Other users contribute one reading entry each — their newest sealed
+# handoff — ordered by the same comparator (date-seq, then user name). That
+# comparator is not re-sorted here and is not seal time.
+# This session's own freshly-created handoff is skipped. Another user's unsealed
+# draft is ignored (it is theirs; it never warns and never redirects). The
+# caller's own newer unsealed draft warns, and the resume stays on the caller's
+# own newest sealed handoff.
 handoffs=()
 while IFS= read -r line; do handoffs+=("$line"); done \
   < <({ find "$COMMS" -mindepth 3 -maxdepth 3 -name session-handoff.md 2>/dev/null || true; } \
@@ -513,41 +543,76 @@ while IFS= read -r line; do handoffs+=("$line"); done \
        | awk -F/ '{ printf "%s\t%s/%s\n", $2, $1, $2 }' | sort)
 # handoffs entries: "<date-seq>\t<user>/<date-seq>" — sorted by date-seq first;
 # same date-seq from different users is a genuine tie: broken by user name (only
-# AFTER date-seq equality — this is a deterministic tie-breaker, NOT chronology;
-# documented in comms/README.md "Canonical state").
+# AFTER date-seq equality — a deterministic tie-breaker, NOT chronology;
+# documented in comms/README.md). The sort key is unchanged from the path-sort
+# fix; only the resume SET changed (the caller, not every user).
 REL_FROM_ENTRY() { printf '%s' "${1#*$'\t'}"; }
 
-PREV_SEALED=""
-DRAFT=""
-OWN_REL="$USER_NAME/"
-ALL_BUT_OWN=()
+OWN_SEALED_REL=""
+OWN_DRAFT_REL=""
+ANY_OTHER=0
+other_users=()
+other_paths=()
 for line in ${handoffs[@]+"${handoffs[@]}"}; do
   rel="$(REL_FROM_ENTRY "$line")"
   # skip THIS session's own freshly-created handoff (relative <user>/<date-seq>)
   [[ "$rel" == "$SESS" ]] && continue
-  # NOTE: the caller's own user folder is NOT skipped here — own SEALED handoffs
-  # are canonical-state candidates (newest sealed anywhere wins, across users).
-  # Only the current session's own draft is excluded (the line above). The old
-  # "$USER_NAME/"* skip threw away every own sealed handoff, making every fresh
-  # start on a single-user box falsely bootstrap as "first session".
-  ALL_BUT_OWN+=("$rel")
-done
-if (( ${#ALL_BUT_OWN[@]} )); then
-  NEWEST_REL="${ALL_BUT_OWN[$(( ${#ALL_BUT_OWN[@]} - 1 ))]}"
-  NEWEST="$COMMS/$NEWEST_REL/session-handoff.md"
-  if grep -qF "$SEAL" "$NEWEST"; then
-    DRAFT="$NEWEST"
-    # newest sealed strictly BEFORE the newest entry (by date-seq order)
-    for rel in "${ALL_BUT_OWN[@]:0:$(( ${#ALL_BUT_OWN[@]} - 1 ))}"; do
-      grep -qF "$SEAL" "$COMMS/$rel/session-handoff.md" || PREV_SEALED="$COMMS/$rel/session-handoff.md"
-    done
-    if [[ -n "$PREV_SEALED" ]]; then
-      echo "warning: newest handoff is an unsealed draft — resuming from the newest sealed handoff instead:" >&2
-      echo "  $PREV_SEALED" >&2
-    fi
+  ANY_OTHER=1
+  user="${rel%%/*}"
+  hf="$COMMS/$rel/session-handoff.md"
+  if grep -qF "$SEAL" "$hf"; then
+    # ascending date-seq, so the last own draft we see is the caller's newest
+    [[ "$user" == "$USER_NAME" ]] && OWN_DRAFT_REL="$rel"
+  elif [[ "$user" == "$USER_NAME" ]]; then
+    OWN_SEALED_REL="$rel"
   else
-    PREV_SEALED="$NEWEST"
+    # last sealed entry per other user (walk is ascending date-seq)
+    found=0
+    i=0
+    for u in ${other_users[@]+"${other_users[@]}"}; do
+      if [[ "$u" == "$user" ]]; then
+        other_paths[i]="$rel"
+        found=1
+        break
+      fi
+      i=$((i + 1))
+    done
+    if [[ "$found" -eq 0 ]]; then
+      other_users+=("$user")
+      other_paths+=("$rel")
+    fi
   fi
+done
+
+# Caller's own newer draft: warn, and do not let it (or anyone else's sealed
+# handoff) replace the caller's own newest sealed resume source. --resume is
+# already sitting in the draft on purpose; don't warn there.
+if [[ "$RESUME" != "--resume" && -n "$OWN_DRAFT_REL" ]]; then
+  draft_seq="${OWN_DRAFT_REL#*/}"
+  sealed_seq="${OWN_SEALED_REL#*/}"
+  if [[ -z "$OWN_SEALED_REL" || "$draft_seq" > "$sealed_seq" ]]; then
+    if [[ -n "$OWN_SEALED_REL" ]]; then
+      echo "warning: your newest handoff is an unsealed draft — resuming from your newest sealed handoff instead:" >&2
+      echo "  $COMMS/$OWN_SEALED_REL/session-handoff.md" >&2
+    else
+      echo "warning: your newest handoff is an unsealed draft (comms/$OWN_DRAFT_REL/) and you have no sealed handoff — this session does not resume from it." >&2
+    fi
+  fi
+fi
+
+# Reading list: other users' newest sealed, same date-seq / user-name order.
+READING=""
+if (( ${#other_paths[@]} )); then
+  READING="
+  3. Other users' newest sealed handoffs (shared context — reading, not your prior state):"
+  while IFS= read -r rel; do
+    [[ -n "$rel" ]] || continue
+    READING="$READING
+     - comms/$rel/session-handoff.md"
+  done < <(printf '%s\n' ${other_paths[@]+"${other_paths[@]}"} \
+            | awk -F/ '{ printf "%s\t%s\n", $2, $1 "/" $2 }' \
+            | sort \
+            | awk -F'\t' '{ print $2 }')
 fi
 
 # --- herdr preamble pane hook ----------------------------------------------------
@@ -661,25 +726,28 @@ else
 fi
 
 # --- print the intro ------------------------------------------------------------
-NEWEST_ALL=""
-if (( ${#handoffs[@]} )); then NEWEST_ALL="$(REL_FROM_ENTRY "${handoffs[$(( ${#handoffs[@]} - 1 ))]}")"; fi
-if [[ "$RESUME" == "--resume" && "$SESS_DIR/session-handoff.md" == "$COMMS/$NEWEST_ALL/session-handoff.md" ]] \
-   && [[ -f "$SESS_DIR/session-handoff.md" ]] && ! grep -qF "$SEAL" "$SESS_DIR/session-handoff.md"; then
-  # resumed the newest session and it is already sealed: its own handoff IS the
-  # canonical state (pointing at an older sealed handoff here would step backwards)
-  PRIOR="Continuing sealed session comms/$SESS — its own handoff IS the current canonical state; append, don't rewrite."
-  SECOND="  2. comms/$SESS/session-handoff.md   — this session's own sealed handoff (canonical state)"
-elif [[ -n "$PREV_SEALED" ]]; then
-  PREV_REL="$(printf '%s' "$PREV_SEALED" | sed "s|^$COMMS/||; s|/session-handoff.md$||")"
-  PRIOR="Resuming from sealed handoff: comms/$PREV_REL/session-handoff.md"
-  SECOND="  2. comms/$PREV_REL/session-handoff.md   — canonical state + its \"How to resume\" manifest"
-elif [[ "$RESUME" == "--resume" && ${#ALL_BUT_OWN[@]} -eq 0 ]]; then
-  PRIOR="Continuing session comms/$SESS — no older handoff exists; this session's own draft handoff is the current state."
-  SECOND="  2. comms/$SESS/session-handoff.md   — this session's own draft handoff (the only prior state)"
-elif [[ -n "$DRAFT" ]]; then
-  DRAFT_REL="$(printf '%s' "$DRAFT" | sed "s|^$COMMS/||; s|/session-handoff.md||")"
-  PRIOR="No sealed handoff exists — the newest is an UNSEALED draft (comms/$DRAFT_REL/), not canonical; treat prior state as unproven. Escape hatches: salvage it by finishing it + ./comms/session-end.sh $DRAFT_REL, or delete the folder and re-run this script for a clean start."
-  SECOND="  2. README.md at the enclosing-folder root — this folder's purpose and conventions (no sealed handoff)"
+# --resume is continuing the folder the hatch opened. Fresh start resumes from
+# the caller's own newest sealed handoff, or says this is their first session.
+if [[ "$RESUME" == "--resume" ]]; then
+  if [[ -f "$SESS_DIR/session-handoff.md" ]] && ! grep -qF "$SEAL" "$SESS_DIR/session-handoff.md"; then
+    PRIOR="Continuing sealed session comms/$SESS — append, don't rewrite."
+    SECOND="  2. comms/$SESS/session-handoff.md   — this session's sealed handoff (append, don't rewrite)"
+  else
+    PRIOR="Continuing session comms/$SESS — this session's draft handoff is the current state."
+    SECOND="  2. comms/$SESS/session-handoff.md   — this session's own draft handoff"
+  fi
+elif [[ -n "$OWN_SEALED_REL" ]]; then
+  PRIOR="Resuming from your sealed handoff: comms/$OWN_SEALED_REL/session-handoff.md"
+  SECOND="  2. comms/$OWN_SEALED_REL/session-handoff.md   — your newest sealed handoff (what this session resumes from) + its \"How to resume\" manifest"
+elif [[ -n "$OWN_DRAFT_REL" ]]; then
+  PRIOR="No sealed handoff of your own — your newest handoff is an UNSEALED draft (comms/$OWN_DRAFT_REL/), not resumed from. Finish it with ./comms/session-end.sh $OWN_DRAFT_REL, or delete the folder to discard it."
+  SECOND="  2. README.md at the enclosing-folder root — this folder's purpose and conventions (no sealed handoff of your own)"
+elif (( ${#other_paths[@]} )); then
+  PRIOR="No sealed handoff of your own — this is your first session. Other users' newest sealed handoffs are listed below as reading (shared context); they are not your prior state."
+  SECOND="  2. README.md at the enclosing-folder root — this folder's purpose and conventions (no sealed handoff of your own)"
+elif [[ "$ANY_OTHER" -eq 1 ]]; then
+  PRIOR="No sealed handoff of your own — this is your first session. Nothing sealed from anyone else is on the reading list."
+  SECOND="  2. README.md at the enclosing-folder root — this folder's purpose and conventions (no sealed handoff of your own)"
 else
   PRIOR="No prior handoff — this is the first session in this enclosing folder. This session's handoff becomes the first."
   SECOND="  2. README.md at the enclosing-folder root — this folder's purpose and conventions (no prior handoff)"
@@ -728,7 +796,7 @@ $OMP_SESS_LINE
 
 READ, in order (the only comms context at session start):
   1. comms/README.md                      — the convention (rarely changes)
-$SECOND
+$SECOND$READING
 $PREAMBLE_NOTICE
 
 That's it. No other comms files, no prior-art, unless the handoff or the operator names them.$PA_STATUS$OV_STATUS
@@ -1004,7 +1072,29 @@ awk -v seal="$SEAL" '
   { print }
 ' "$HANDOFF" > "$HANDOFF.tmp"
 mv "$HANDOFF.tmp" "$HANDOFF"
-echo "Sealed comms/$SESS/session-handoff.md — it is now the canonical state."
+# "Canonical" used to mean the single cross-user maximum by date-seq. Sealing
+# does not do that: an older date-seq never outranks a newer one, and other
+# users resume from their own newest sealed handoff. Say whose resume source
+# this file is, or name the newer one that remains.
+owner="${SESS%%/*}"
+seq="${SESS#*/}"
+if [[ "$owner" == "$SESS" ]]; then
+  echo "Sealed comms/$SESS/session-handoff.md — sealed. This session has no user-keyed owner, so it is not another user's resume source."
+else
+  newest=""
+  while IFS= read -r d; do
+    [[ -n "$d" ]] || continue
+    f="$COMMS/$owner/$d/session-handoff.md"
+    [[ -f "$f" ]] || continue
+    grep -qF "$SEAL" "$f" && continue
+    newest="$d"
+  done < <({ find "$COMMS/$owner" -mindepth 1 -maxdepth 1 -type d -name '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9]' 2>/dev/null || true; } | sed 's|.*/||' | sort)
+  if [[ -z "$newest" || "$newest" == "$seq" ]]; then
+    echo "Sealed comms/$SESS/session-handoff.md — it is now $owner's newest sealed handoff. $owner's next session resumes from it. Other users resume from their own."
+  else
+    echo "Sealed comms/$SESS/session-handoff.md. $owner's newest sealed handoff remains comms/$owner/$newest/session-handoff.md — the next session for $owner resumes from that, not this one."
+  fi
+fi
 echo "Next session: ./comms/session-start.sh   (same-day continuation: --resume)"
 SCRIPT_EOF
 
@@ -1012,7 +1102,7 @@ cat > "$TARGET/comms/templates/session-handoff.md" <<'TEMPLATE_EOF'
 # Session handoff — {{DATE-SEQ}}
 
 <!-- SEAL: delete this line when this handoff is final. While present, this file is a
-     draft: session-start.sh will not treat it as canonical, and the folder is unsealed. -->
+     draft: session-start.sh will not resume from it, and the folder is unsealed. -->
 
 > Written for a cold reader: the next session reads ONLY this file plus the files its
 > "How to resume" manifest names. Everything else in comms/ stays closed until this
@@ -1243,11 +1333,14 @@ This enclosing folder has a **scripted session protocol**. Follow it mechanicall
 1. **Session start:** run `./comms/session-start.sh` (add `--resume` for a same-day
    continuation — also the crash-recovery hatch after a wedged agent or lost terminal;
    past midnight, `--resume` reopens the calling user's newest earlier-day session; with
-   none of your own, it resumes the newest sealed handoff ACROSS users — the shared
-   context). Sessions are keyed by OS user: `comms/<user>/<YYYYMMDD>-<NN>/` — the script
-   derives the user and sequence automatically.
-   Read exactly what it prints — `comms/README.md` and the newest **sealed**
-   `session-handoff.md` — and then only files that handoff's "How to resume" manifest names.
+   none of your own, `--resume` opens the newest sealed handoff across users — an
+   explicit continuation, not what a fresh start does). Sessions are keyed by OS user:
+   `comms/<user>/<YYYYMMDD>-<NN>/` — the script derives the user and sequence automatically.
+   A fresh start resumes from **your** newest sealed handoff. Read exactly what it prints:
+   `comms/README.md`, that handoff, and other users' newest sealed handoffs listed as
+   reading — then only files that your handoff's "How to resume" manifest names.
+   A caller with no sealed handoff of their own is starting their first session; the
+   colleagues' files on the list are reading, not prior state.
    Do not glob comms history, do not scan `prior-art/`, unless the handoff or the operator
    points to a specific file.
 2. **Session end:** fill `conversation.md` + `session-handoff.md` in your session folder
