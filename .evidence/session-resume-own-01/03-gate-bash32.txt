@@ -1,0 +1,69 @@
+== 1. u1 fresh start
+  PASS: u1 fresh start creates comms/u1/<today>-01
+  PASS: intro names u1's session folder
+== 1b. empty omp session-slug dir does not kill the intro (glob guard)
+  PASS: intro survives empty omp slug dir (Session id unknown)
+== 2. u2 fresh start while u1 unsealed (per-user guard)
+  PASS: u2 fresh start succeeds while u1 unsealed
+== 3. u1 fresh again (own unsealed guard)
+  PASS: u1 own-unsealed guard fires
+== 4. u1 --resume reopens own folder
+  PASS: u1 --resume reopens own session
+== 5. u1 seal incomplete → refused with section names
+  PASS: incomplete seal refused
+== 6. fill u1 handoff + seal
+  PASS: u1 sealed (marker gone)
+  PASS: ledger digest appended
+  PASS: seal message names the caller's newest sealed handoff
+== 7. caller with no sealed handoff does not inherit another user's
+  PASS: brand-new user starts without adopting another user's handoff
+  PASS: other user's newest sealed handoff is listed as reading
+  PASS: brand-new user has no resume-from line
+== 8. cross-user seal: u1 seals u2's draft
+  PASS: u2 draft sealed by u1 (explicit prefixed arg)
+== 9. bad names refused
+  PASS: templates refused
+  PASS: multi-slash name refused
+  PASS: --resume refused in session-end
+== 10. bare seal, caller has no session → refuse naming salvage
+  PASS: bare seal refuses for empty user
+== 11. cross-user CHRONOLOGY: newest date-seq wins regardless of user name
+  PASS: zz/20261020-01 sealed (old handoff)
+  PASS: u2/20261021-01 sealed (newest handoff)
+  PASS: own newest sealed wins over older other-user handoff
+  PASS: user with no handoff does not resume from the global newest date-seq
+  PASS: reading list keeps date-seq order and user-name tie-break (not path order)
+== 12. own-user sealed history participates (fresh start is not a false bootstrap)
+  PASS: vz/20261021-01 sealed (own-user fixture)
+  PASS: own newest sealed wins on fresh start (no false first-session)
+  PASS: own unsealed draft skipped; newest sealed resumed
+  PASS: draft skipped with a loud warning
+== 13. resume source is the caller's own newest sealed (cases A-D)
+-- A: same date-seq, earlier name sealed later
+  PASS: A: earlier-named caller resumes from his own sealed handoff (seal time ignored)
+  PASS: A: later-named caller resumes from his own and lists the other user
+-- B: a higher sequence in someone else's folder is reading, not the resume source
+  PASS: B: caller resumes from own newest sealed; other user's newer seq is reading
+-- C: sealing an older own handoff is not global canonical
+  PASS: C: session-end names the owner's newest sealed handoff, not global canonical
+  PASS: C: caller resumes from own older sealed handoff; newer other-user is reading
+-- D: another user's unsealed draft does not warn or redirect
+  PASS: D: other user's draft does not warn or replace the caller's own sealed handoff
+-- E: own unsealed draft falls back to own sealed, not a colleague's newer sealed
+  PASS: E: own unsealed draft falls back to own sealed, not another user's newer sealed
+-- sealing an older folder does not claim to be the newest
+  PASS: sealing an older handoff names the newer one that remains
+
+== 11. comms-as-git (unit 1): repo valid + credential hook fires (8 assertions)
+  PASS: comms/ is a valid git repo
+  PASS: comms repo has history (initial commit)
+  PASS: tracked hook copy present (comms/hooks/pre-push)
+  PASS: active hook stamped (.git/hooks/pre-push executable)
+  PASS: hook copies identical (tree vs active)
+  PASS: hook refuses credential-shaped commit (exit 1)
+  PASS: refusal explains itself
+  PASS: refusal names the offending line
+  PASS: refusal names the deliberate escape
+  PASS: positive control: clean range passes the hook
+
+== RESULTS: 45 pass, 0 fail (comms-as-git extended set) ==

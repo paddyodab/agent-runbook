@@ -9,7 +9,10 @@
 #   4. u1 --resume                    → reopens u1's own folder
 #   5. u1 seal (incomplete handoff)   → REFUSED with named sections
 #   6. u1 seal (complete handoff)     → sealed; ledger digest written
-#   7. u2 fresh start after u1 sealed → resumes from u1's sealed handoff (cross-user)
+#   7. u2 fresh start after u1 sealed, u2's folder removed → u2's first session;
+#      does NOT adopt u1's handoff; u1's newest sealed is listed as reading
+#  13. cases A–D (+ own-draft fallback): resume source is the caller's own
+#      newest sealed handoff; other users' newest sealed are reading only
 #   8. u2 seal via explicit arg       → u1 seals u2's draft (cross-user salvage path)
 #   9. bad names refused              → templates, bad/user/path, unknown option
 #  10. bare seal with no session      → refuses, names the prefixed salvage command
@@ -168,12 +171,30 @@ sed "s/{{DATE-SEQ}}/$(date +%Y%m%d)-01/g" "$SCRIPTS/templates/conversation.md" >
 run 0 u1 session-end.sh
 grep -qF 'SEAL' "$(sess_dir u1/$(date +%Y%m%d)-01/session-handoff.md)" && fail "u1 seal" "SEAL marker still present" || ok "u1 sealed (marker gone)"
 grep -qF 'U1-TEST-FINDING' "$LIFECYCLE_HOME/.agent/learnings.md" && ok "ledger digest appended" || fail "ledger" "finding not appended"
+if echo "$OUT" | grep -F "u1's newest sealed handoff" >/dev/null \
+   && ! echo "$OUT" | grep -F "the canonical state" >/dev/null; then
+  ok "seal message names the caller's newest sealed handoff"
+else
+  fail "seal message" "$OUT"
+fi
 
-echo "== 7. u2 fresh start resumes from u1's sealed handoff"
+echo "== 7. caller with no sealed handoff does not inherit another user's"
+# u2's folder was removed: u2 has no handoff. u1's today-01 is sealed. Fresh start
+# must NOT resume from u1 (that was the cross-user "canonical" claim). u1 stays
+# visible as reading.
 rm -rf "$(sess_dir u2)"
 run 0 u2 session-start.sh
-echo "$OUT" | grep -q "Resuming from sealed handoff: comms/u1/$(date +%Y%m%d)-01/session-handoff.md" \
-  && ok "cross-user resume from u1 sealed handoff" || fail "cross-user resume" "not resumed: $OUT"
+echo "$OUT" | grep -q "No sealed handoff of your own" \
+  && ok "brand-new user starts without adopting another user's handoff" \
+  || fail "brand-new user" "inherited or unclear: $OUT"
+echo "$OUT" | grep -q "comms/u1/$(date +%Y%m%d)-01/session-handoff.md" \
+  && ok "other user's newest sealed handoff is listed as reading" \
+  || fail "reading list" "u1 missing: $OUT"
+if echo "$OUT" | grep -q "Resuming from"; then
+  fail "brand-new user resume line" "adopted a resume source: $OUT"
+else
+  ok "brand-new user has no resume-from line"
+fi
 
 echo "== 8. cross-user seal: u1 seals u2's draft"
 # u2's fresh-started handoff is a template draft — fill it like an operator would first
@@ -210,19 +231,18 @@ fill_handoff "$(sess_dir u2/$(date +%Y%m%d)-01)/session-handoff.md" u2
 sed "s/{{DATE-SEQ}}/$(date +%Y%m%d)-01/g" "$SCRIPTS/templates/conversation.md" > "$(sess_dir u2/$(date +%Y%m%d)-01)/conversation.md"
 run 0 u2 session-end.sh "u2/$(date +%Y%m%d)-01" 2>/dev/null || true
 grep -qF 'SEAL' "$(sess_dir u2/$(date +%Y%m%d)-01/session-handoff.md)" && fail "u2 seal" "SEAL still present" || ok "u2/$TODAY-01 sealed (newest handoff)"
-# own newest wins over older other-user handoff: u2's own TODAY is sealed; the
-# only OLDER handoffs are zz (yesterday) + mw (2 days ago). u1's handoff is ALSO
-# today's date-seq (sealed in step 6) — a genuine date-seq TIE, broken by user
-# name (u1 < u2, deterministic, documented). So the resumed PRIOR must be either
-# u2's own (sole-newest case) or u1's (tie case) — NEVER zz/mw (older).
+# Own newest sealed wins over an older other-user handoff. u1's handoff shares
+# today's date-seq (a tie the old selector broke by user name). The resume source
+# is u2's own file either way — the tie-breaker must not hand u2 someone else's.
+# zz/mw are older and must not win.
 run 0 u2 session-start.sh
-echo "$OUT" | grep -Eq "Resuming from sealed handoff: comms/u[12]/$TODAY-01/session-handoff.md" \
-  && ok "own-newest (or documented tie) wins over older other-user handoff" || fail "own newest" "wrong: $OUT"
-# the real trap: u1 (alphabetically EARLY) with the NEWEST date-seq — impossible
-# with real dates (can't seal tomorrow), so the newest-cross-user fixture is:
-# u2 has OWN today-sealed + zz has OLDER sealed; a THIRD user (mid-alphabet 'mw')
-# gets an intermediate date; fresh-start for a FOURTH user 'anew' must pick u2's
-# today (newest), regardless of zz sorting last.
+echo "$OUT" | grep -q "Resuming from your sealed handoff: comms/u2/$TODAY-01/session-handoff.md" \
+  && ok "own newest sealed wins over older other-user handoff" || fail "own newest" "wrong: $OUT"
+# Date-seq order is NOT re-sorted (fence, session-start-own-sealed-01). A user
+# with no handoff of their own does not resume from the global maximum. The
+# reading list still orders other users' newest sealed handoffs by date-seq,
+# user name breaking a tie — so zz (late alphabet, older) sorts BEFORE u2's
+# today, which a path sort would get backwards (zz last).
 MW_YESTERDAY="$(date -v -2d +%Y%m%d 2>/dev/null || date -d "@$(( $(date +%s) - 172800 ))" +%Y%m%d)"
 mkdir -p "$(sess_dir mw/$MW_YESTERDAY-01)"
 fill_handoff "$(sess_dir mw/$MW_YESTERDAY-01)/session-handoff.md" mw
@@ -232,21 +252,39 @@ run 0 u2 session-end.sh "mw/$MW_YESTERDAY-01" 2>/dev/null || true
 # UNSEALED drafts). The rm target is anew only; u2 keeps its sealed handoff.
 rm -rf "$(sess_dir anew)"
 run 0 anew session-start.sh
-echo "$OUT" | grep -q "Resuming from sealed handoff: comms/u2/$TODAY-01/session-handoff.md" \
-  && ok "newest date-seq wins across users (not path order)" || fail "chronology" "wrong: $OUT"
+echo "$OUT" | grep -q "No sealed handoff of your own" \
+  && ok "user with no handoff does not resume from the global newest date-seq" \
+  || fail "anew resume" "wrong: $OUT"
+# reading-list order: mw (oldest), zz, u1, u2 (same date-seq, u1 < u2).
+# Anchor on the numbered reading item. The intro prose also says "Other users"
+# before the list; a looser match exits at "  1. comms/README.md".
+ranks="$(echo "$OUT" | awk '
+  /^  3\. Other users/ { p = 1; next }
+  p && /^  [0-9]+\./ { exit }
+  p && /session-handoff.md/ { print }
+')"
+mw_n="$(echo "$ranks" | grep -n "mw/$MW_YESTERDAY-01/" | head -1 | cut -d: -f1)"
+zz_n="$(echo "$ranks" | grep -n "zz/$YESTERDAY-01/" | head -1 | cut -d: -f1)"
+u1_n="$(echo "$ranks" | grep -n "u1/$TODAY-01/" | head -1 | cut -d: -f1)"
+u2_n="$(echo "$ranks" | grep -n "u2/$TODAY-01/" | head -1 | cut -d: -f1)"
+if [ -n "$mw_n" ] && [ -n "$zz_n" ] && [ -n "$u1_n" ] && [ -n "$u2_n" ] \
+   && [ "$mw_n" -lt "$zz_n" ] && [ "$zz_n" -lt "$u1_n" ] && [ "$u1_n" -lt "$u2_n" ] \
+   && ! echo "$ranks" | grep -q "u2/$TODAY-02/"; then
+  ok "reading list keeps date-seq order and user-name tie-break (not path order)"
+else
+  fail "reading order" "mw=$mw_n zz=$zz_n u1=$u1_n u2=$u2_n list=$ranks"
+fi
 
 echo "== 12. own-user sealed history participates (fresh start is not a false bootstrap)"
-# Regression for the single-user box: the caller's own SEALED handoffs are canonical
-# candidates (comms/README.md: newest sealed handoff ANYWHERE wins, across users).
-# 12a — own newest sealed is the newest anywhere: 'vz' sorts after u2, so vz/TODAY-01
-# sealed beats u1/u2 TODAY-01; vz's fresh start must resume from vz's OWN handoff.
+# The caller's own SEALED handoffs are the resume source. 12a — vz/TODAY-01 is
+# sealed; vz's fresh start resumes from that file, not from an earlier user's.
 mkdir -p "$(sess_dir vz/"$TODAY"-01)"
 fill_handoff "$(sess_dir vz/"$TODAY"-01)/session-handoff.md" vz
 run 0 u2 session-end.sh "vz/$TODAY-01" 2>/dev/null || true
 grep -qF 'SEAL' "$(sess_dir vz/"$TODAY"-01/session-handoff.md)" && fail "vz seal" "SEAL still present"
 ok "vz/$TODAY-01 sealed (own-user fixture)"
 if run 0 vz session-start.sh; then
-  if echo "$OUT" | grep -q "Resuming from sealed handoff: comms/vz/$TODAY-01/session-handoff.md"; then
+  if echo "$OUT" | grep -q "Resuming from your sealed handoff: comms/vz/$TODAY-01/session-handoff.md"; then
     ok "own newest sealed wins on fresh start (no false first-session)"
   else
     fail "own newest sealed" "own sealed handoff ignored: $OUT"
@@ -263,7 +301,7 @@ fill_handoff "$(sess_dir wdr/"$MW_YESTERDAY"-01)/session-handoff.md" wdr
 run 0 u2 session-end.sh "wdr/$MW_YESTERDAY-01" 2>/dev/null || true
 cp "$SCRIPTS/templates/session-handoff.md" "$(sess_dir wdr/"$YESTERDAY"-01)/session-handoff.md"
 if run 0 wdr session-start.sh; then
-  if echo "$OUT" | grep -q "Resuming from sealed handoff: comms/wdr/$MW_YESTERDAY-01/session-handoff.md"; then
+  if echo "$OUT" | grep -q "Resuming from your sealed handoff: comms/wdr/$MW_YESTERDAY-01/session-handoff.md"; then
     ok "own unsealed draft skipped; newest sealed resumed"
   else
     fail "own draft fallback" "draft ignored or wrong target: $OUT"
@@ -275,6 +313,158 @@ if echo "$ERR" | grep -q "unsealed draft"; then
   ok "draft skipped with a loud warning"
 else
   fail "draft warning" "silent fallback: $ERR"
+fi
+
+echo "== 13. resume source is the caller's own newest sealed (cases A-D)"
+# Date-seq order and the user-name tie-break are not re-sorted here. Each case
+# is isolated (session dirs wiped) so one start cannot plant a draft for the next.
+# Users patdabney / dustinwarner match the e399eac repro: dustinwarner < patdabney.
+wipe_user_sessions() {
+  find "$TARGET/comms" -mindepth 1 -maxdepth 1 -type d \
+    ! -name templates ! -name hooks ! -name '.git' -exec rm -rf {} +
+}
+plant_session() {
+  local rel="$1" mode="$2"
+  local dir="$TARGET/comms/$rel"
+  mkdir -p "$dir"
+  cp "$SCRIPTS/templates/session-handoff.md" "$dir/session-handoff.md"
+  cp "$SCRIPTS/templates/conversation.md" "$dir/conversation.md"
+  fill_handoff "$dir/session-handoff.md" "${rel%%/*}"
+  if [ "$mode" = draft ]; then
+    {
+      printf '%s\n' \
+        '<!-- SEAL: delete this line when this handoff is final. While present, this file is a' \
+        '     draft: session-start.sh will not treat it as canonical, and the folder is unsealed. -->'
+      cat "$dir/session-handoff.md"
+    } > "$dir/session-handoff.md.tmp" && mv "$dir/session-handoff.md.tmp" "$dir/session-handoff.md"
+  fi
+}
+
+echo "-- A: same date-seq, earlier name sealed later"
+wipe_user_sessions
+plant_session "patdabney/$TODAY-01" sealed
+plant_session "dustinwarner/$TODAY-01" sealed
+touch -d '2020-01-01 00:00:00' "$TARGET/comms/patdabney/$TODAY-01/session-handoff.md"
+touch -d '2030-01-01 00:00:00' "$TARGET/comms/dustinwarner/$TODAY-01/session-handoff.md"
+if run 0 dustinwarner session-start.sh; then
+  if echo "$OUT" | grep -q "Resuming from your sealed handoff: comms/dustinwarner/$TODAY-01/session-handoff.md" \
+     && echo "$OUT" | grep -q "comms/patdabney/$TODAY-01/session-handoff.md"; then
+    ok "A: earlier-named caller resumes from his own sealed handoff (seal time ignored)"
+  else
+    fail "A dustin" "wrong: $OUT"
+  fi
+else
+  fail "A dustin" "rc=$RC $ERR"
+fi
+wipe_user_sessions
+plant_session "patdabney/$TODAY-01" sealed
+plant_session "dustinwarner/$TODAY-01" sealed
+touch -d '2020-01-01 00:00:00' "$TARGET/comms/patdabney/$TODAY-01/session-handoff.md"
+touch -d '2030-01-01 00:00:00' "$TARGET/comms/dustinwarner/$TODAY-01/session-handoff.md"
+if run 0 patdabney session-start.sh; then
+  if echo "$OUT" | grep -q "Resuming from your sealed handoff: comms/patdabney/$TODAY-01/session-handoff.md" \
+     && echo "$OUT" | grep -q "comms/dustinwarner/$TODAY-01/session-handoff.md"; then
+    ok "A: later-named caller resumes from his own and lists the other user"
+  else
+    fail "A pat" "wrong: $OUT"
+  fi
+else
+  fail "A pat" "rc=$RC $ERR"
+fi
+
+echo "-- B: a higher sequence in someone else's folder is reading, not the resume source"
+wipe_user_sessions
+plant_session "patdabney/$TODAY-01" sealed
+plant_session "patdabney/$TODAY-02" sealed
+plant_session "dustinwarner/$TODAY-01" sealed
+plant_session "dustinwarner/$TODAY-02" sealed
+plant_session "dustinwarner/$TODAY-03" sealed
+if run 0 patdabney session-start.sh; then
+  if echo "$OUT" | grep -q "Resuming from your sealed handoff: comms/patdabney/$TODAY-02/session-handoff.md" \
+     && echo "$OUT" | grep -q "comms/dustinwarner/$TODAY-03/session-handoff.md" \
+     && ! echo "$OUT" | grep -q "Resuming from your sealed handoff: comms/dustinwarner/"; then
+    ok "B: caller resumes from own newest sealed; other user's newer seq is reading"
+  else
+    fail "B" "wrong: $OUT"
+  fi
+else
+  fail "B" "rc=$RC $ERR"
+fi
+
+echo "-- C: sealing an older own handoff is not global canonical"
+wipe_user_sessions
+plant_session "patdabney/$TODAY-01" sealed
+plant_session "dustinwarner/$YESTERDAY-01" draft
+if run 0 dustinwarner session-end.sh "dustinwarner/$YESTERDAY-01"; then
+  if echo "$OUT" | grep -F "dustinwarner's newest sealed handoff" >/dev/null \
+     && ! echo "$OUT" | grep -F "the canonical state" >/dev/null; then
+    ok "C: session-end names the owner's newest sealed handoff, not global canonical"
+  else
+    fail "C seal message" "untruthful: $OUT"
+  fi
+else
+  fail "C seal" "rc=$RC $ERR"
+fi
+if run 0 dustinwarner session-start.sh; then
+  if echo "$OUT" | grep -q "Resuming from your sealed handoff: comms/dustinwarner/$YESTERDAY-01/session-handoff.md" \
+     && echo "$OUT" | grep -q "comms/patdabney/$TODAY-01/session-handoff.md"; then
+    ok "C: caller resumes from own older sealed handoff; newer other-user is reading"
+  else
+    fail "C start" "wrong: $OUT"
+  fi
+else
+  fail "C start" "rc=$RC $ERR"
+fi
+
+echo "-- D: another user's unsealed draft does not warn or redirect"
+wipe_user_sessions
+plant_session "dustinwarner/$YESTERDAY-01" sealed
+plant_session "patdabney/$TODAY-01" sealed
+plant_session "patdabney/$TODAY-02" draft
+if run 0 dustinwarner session-start.sh; then
+  if echo "$OUT" | grep -q "Resuming from your sealed handoff: comms/dustinwarner/$YESTERDAY-01/session-handoff.md" \
+     && echo "$OUT" | grep -q "comms/patdabney/$TODAY-01/session-handoff.md" \
+     && ! echo "$OUT" | grep -q "patdabney/$TODAY-02" \
+     && ! echo "$ERR" | grep -q "unsealed draft"; then
+    ok "D: other user's draft does not warn or replace the caller's own sealed handoff"
+  else
+    fail "D" "out=$OUT err=$ERR"
+  fi
+else
+  fail "D" "rc=$RC $ERR"
+fi
+
+echo "-- E: own unsealed draft falls back to own sealed, not a colleague's newer sealed"
+wipe_user_sessions
+plant_session "patdabney/$MW_YESTERDAY-01" sealed
+plant_session "patdabney/$YESTERDAY-01" draft
+plant_session "dustinwarner/$TODAY-01" sealed
+if run 0 patdabney session-start.sh; then
+  if echo "$OUT" | grep -q "Resuming from your sealed handoff: comms/patdabney/$MW_YESTERDAY-01/session-handoff.md" \
+     && echo "$ERR" | grep -q "unsealed draft" \
+     && echo "$OUT" | grep -q "comms/dustinwarner/$TODAY-01/session-handoff.md"; then
+    ok "E: own unsealed draft falls back to own sealed, not another user's newer sealed"
+  else
+    fail "E" "out=$OUT err=$ERR"
+  fi
+else
+  fail "E" "rc=$RC $ERR"
+fi
+
+echo "-- sealing an older folder does not claim to be the newest"
+wipe_user_sessions
+plant_session "patdabney/$TODAY-02" sealed
+plant_session "patdabney/$TODAY-01" draft
+if run 0 patdabney session-end.sh "patdabney/$TODAY-01"; then
+  if echo "$OUT" | grep -F "remains comms/patdabney/$TODAY-02/session-handoff.md" >/dev/null \
+     && ! echo "$OUT" | grep -F "the canonical state" >/dev/null \
+     && ! echo "$OUT" | grep -F "it is now patdabney's newest" >/dev/null; then
+    ok "sealing an older handoff names the newer one that remains"
+  else
+    fail "older seal message" "$OUT"
+  fi
+else
+  fail "older seal" "rc=$RC $ERR"
 fi
 
 echo

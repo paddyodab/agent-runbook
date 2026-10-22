@@ -1,0 +1,27 @@
+== interpreters ==
+GNU bash, version 5.3.0(1)-release (x86_64-pc-linux-gnu)
+GNU bash, version 3.2.57(2)-release (x86_64-unknown-linux-gnu)
+GNU bash, version 5.2.21(1)-release (x86_64-pc-linux-gnu)
+== mirrors (heredoc extract vs scaffolded fixedbox) ==
+session-start.sh cmp OK
+session-end.sh cmp OK
+glow-pane.sh repo cmp OK
+glow-pane.sh scaffold cmp OK
+AGENTS.md body cmp OK (slug line excluded)
+== shellcheck (new code) ==
+session-start warnings:
+
+In /tmp/m-start.sh line 392:
+  CUR="$(ls -t "$OMP_SESS_DIR/$CUR_SLUG"/*.jsonl 2>/dev/null | head -1 | sed -n 's/.*_\([0-9a-f-]\{36\}\)\.jsonl$/\1/p')"
+         ^-- SC2012 (info): Use find instead of ls to better handle non-alphanumeric filenames.
+
+For more information:
+  https://www.shellcheck.net/wiki/SC2012 -- Use find instead of ls to better ...
+session-end warnings:
+
+In /tmp/m-end.sh line 106:
+      grep -qF "$SEAL" "$f" && DRAFT_CAND="$f" || true
+                            ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+For more information:
+  https://www.shellcheck.net/wiki/SC2015 -- Note that A && B || C is not if-t...

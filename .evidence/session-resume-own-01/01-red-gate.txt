@@ -1,0 +1,244 @@
+== 1. u1 fresh start
+  PASS: u1 fresh start creates comms/u1/<today>-01
+  PASS: intro names u1's session folder
+== 1b. empty omp session-slug dir does not kill the intro (glob guard)
+  PASS: intro survives empty omp slug dir (Session id unknown)
+== 2. u2 fresh start while u1 unsealed (per-user guard)
+  PASS: u2 fresh start succeeds while u1 unsealed
+== 3. u1 fresh again (own unsealed guard)
+  PASS: u1 own-unsealed guard fires
+== 4. u1 --resume reopens own folder
+  PASS: u1 --resume reopens own session
+== 5. u1 seal incomplete → refused with section names
+  PASS: incomplete seal refused
+== 6. fill u1 handoff + seal
+  PASS: u1 sealed (marker gone)
+  PASS: ledger digest appended
+  FAIL: seal message — Appended methodology findings to ~/.agent/learnings.md
+Sealed comms/u1/20261021-01/session-handoff.md — it is now the canonical state.
+Next session: ./comms/session-start.sh   (same-day continuation: --resume)
+== 7. caller with no sealed handoff does not inherit another user's
+  FAIL: brand-new user — inherited or unclear: 
+=== Session intro — u2/20261021-01 ===
+Resuming from sealed handoff: comms/u1/20261021-01/session-handoff.md
+This session's folder: comms/u2/20261021-01/   (drop files here; conversation.md is append-only)
+Session id: (unknown — derive from cwd-slug + folder time)
+
+READ, in order (the only comms context at session start):
+  1. comms/README.md                      — the convention (rarely changes)
+  2. comms/u1/20261021-01/session-handoff.md   — canonical state + its "How to resume" manifest
+
+
+That's it. No other comms files, no prior-art, unless the handoff or the operator names them.
+  (overwatch: not installed — index rebuild skipped)
+
+When the session ends, run: ./comms/session-end.sh
+  PASS: other user's newest sealed handoff is listed as reading
+  FAIL: brand-new user resume line — adopted a resume source: 
+=== Session intro — u2/20261021-01 ===
+Resuming from sealed handoff: comms/u1/20261021-01/session-handoff.md
+This session's folder: comms/u2/20261021-01/   (drop files here; conversation.md is append-only)
+Session id: (unknown — derive from cwd-slug + folder time)
+
+READ, in order (the only comms context at session start):
+  1. comms/README.md                      — the convention (rarely changes)
+  2. comms/u1/20261021-01/session-handoff.md   — canonical state + its "How to resume" manifest
+
+
+That's it. No other comms files, no prior-art, unless the handoff or the operator names them.
+  (overwatch: not installed — index rebuild skipped)
+
+When the session ends, run: ./comms/session-end.sh
+== 8. cross-user seal: u1 seals u2's draft
+  PASS: u2 draft sealed by u1 (explicit prefixed arg)
+== 9. bad names refused
+  PASS: templates refused
+  PASS: multi-slash name refused
+  PASS: --resume refused in session-end
+== 10. bare seal, caller has no session → refuse naming salvage
+  PASS: bare seal refuses for empty user
+== 11. cross-user CHRONOLOGY: newest date-seq wins regardless of user name
+  PASS: zz/20261020-01 sealed (old handoff)
+  PASS: u2/20261021-01 sealed (newest handoff)
+  FAIL: own newest — wrong: 
+=== Session intro — u2/20261021-02 ===
+Resuming from sealed handoff: comms/u2/20261021-01/session-handoff.md
+This session's folder: comms/u2/20261021-02/   (drop files here; conversation.md is append-only)
+Session id: (unknown — derive from cwd-slug + folder time)
+
+READ, in order (the only comms context at session start):
+  1. comms/README.md                      — the convention (rarely changes)
+  2. comms/u2/20261021-01/session-handoff.md   — canonical state + its "How to resume" manifest
+
+
+That's it. No other comms files, no prior-art, unless the handoff or the operator names them.
+  (overwatch: not installed — index rebuild skipped)
+
+When the session ends, run: ./comms/session-end.sh
+  FAIL: anew resume — wrong: 
+=== Session intro — anew/20261021-01 ===
+Resuming from sealed handoff: comms/u2/20261021-01/session-handoff.md
+This session's folder: comms/anew/20261021-01/   (drop files here; conversation.md is append-only)
+Session id: (unknown — derive from cwd-slug + folder time)
+
+READ, in order (the only comms context at session start):
+  1. comms/README.md                      — the convention (rarely changes)
+  2. comms/u2/20261021-01/session-handoff.md   — canonical state + its "How to resume" manifest
+
+
+That's it. No other comms files, no prior-art, unless the handoff or the operator names them.
+  (overwatch: not installed — index rebuild skipped)
+
+When the session ends, run: ./comms/session-end.sh
+  FAIL: reading order — mw= zz= u1= u2= list=
+== 12. own-user sealed history participates (fresh start is not a false bootstrap)
+  PASS: vz/20261021-01 sealed (own-user fixture)
+  FAIL: own newest sealed — own sealed handoff ignored: 
+=== Session intro — vz/20261021-02 ===
+Resuming from sealed handoff: comms/vz/20261021-01/session-handoff.md
+This session's folder: comms/vz/20261021-02/   (drop files here; conversation.md is append-only)
+Session id: (unknown — derive from cwd-slug + folder time)
+
+READ, in order (the only comms context at session start):
+  1. comms/README.md                      — the convention (rarely changes)
+  2. comms/vz/20261021-01/session-handoff.md   — canonical state + its "How to resume" manifest
+
+
+That's it. No other comms files, no prior-art, unless the handoff or the operator names them.
+  (overwatch: not installed — index rebuild skipped)
+
+When the session ends, run: ./comms/session-end.sh
+  FAIL: own draft fallback — draft ignored or wrong target: 
+=== Session intro — wdr/20261021-01 ===
+Resuming from sealed handoff: comms/wdr/20261019-01/session-handoff.md
+This session's folder: comms/wdr/20261021-01/   (drop files here; conversation.md is append-only)
+Session id: (unknown — derive from cwd-slug + folder time)
+
+READ, in order (the only comms context at session start):
+  1. comms/README.md                      — the convention (rarely changes)
+  2. comms/wdr/20261019-01/session-handoff.md   — canonical state + its "How to resume" manifest
+
+
+That's it. No other comms files, no prior-art, unless the handoff or the operator names them.
+  (overwatch: not installed — index rebuild skipped)
+
+When the session ends, run: ./comms/session-end.sh
+  PASS: draft skipped with a loud warning
+== 13. resume source is the caller's own newest sealed (cases A-D)
+-- A: same date-seq, earlier name sealed later
+  FAIL: A dustin — wrong: 
+=== Session intro — dustinwarner/20261021-02 ===
+Resuming from sealed handoff: comms/patdabney/20261021-01/session-handoff.md
+This session's folder: comms/dustinwarner/20261021-02/   (drop files here; conversation.md is append-only)
+Session id: (unknown — derive from cwd-slug + folder time)
+
+READ, in order (the only comms context at session start):
+  1. comms/README.md                      — the convention (rarely changes)
+  2. comms/patdabney/20261021-01/session-handoff.md   — canonical state + its "How to resume" manifest
+
+
+That's it. No other comms files, no prior-art, unless the handoff or the operator names them.
+  (overwatch: not installed — index rebuild skipped)
+
+When the session ends, run: ./comms/session-end.sh
+  FAIL: A pat — wrong: 
+=== Session intro — patdabney/20261021-02 ===
+Resuming from sealed handoff: comms/patdabney/20261021-01/session-handoff.md
+This session's folder: comms/patdabney/20261021-02/   (drop files here; conversation.md is append-only)
+Session id: (unknown — derive from cwd-slug + folder time)
+
+READ, in order (the only comms context at session start):
+  1. comms/README.md                      — the convention (rarely changes)
+  2. comms/patdabney/20261021-01/session-handoff.md   — canonical state + its "How to resume" manifest
+
+
+That's it. No other comms files, no prior-art, unless the handoff or the operator names them.
+  (overwatch: not installed — index rebuild skipped)
+
+When the session ends, run: ./comms/session-end.sh
+-- B: a higher sequence in someone else's folder is reading, not the resume source
+  FAIL: B — wrong: 
+=== Session intro — patdabney/20261021-03 ===
+Resuming from sealed handoff: comms/dustinwarner/20261021-03/session-handoff.md
+This session's folder: comms/patdabney/20261021-03/   (drop files here; conversation.md is append-only)
+Session id: (unknown — derive from cwd-slug + folder time)
+
+READ, in order (the only comms context at session start):
+  1. comms/README.md                      — the convention (rarely changes)
+  2. comms/dustinwarner/20261021-03/session-handoff.md   — canonical state + its "How to resume" manifest
+
+
+That's it. No other comms files, no prior-art, unless the handoff or the operator names them.
+  (overwatch: not installed — index rebuild skipped)
+
+When the session ends, run: ./comms/session-end.sh
+-- C: sealing an older own handoff is not global canonical
+  FAIL: C seal message — untruthful: Appended methodology findings to ~/.agent/learnings.md
+Sealed comms/dustinwarner/20261020-01/session-handoff.md — it is now the canonical state.
+Next session: ./comms/session-start.sh   (same-day continuation: --resume)
+  FAIL: C start — wrong: 
+=== Session intro — dustinwarner/20261021-01 ===
+Resuming from sealed handoff: comms/patdabney/20261021-01/session-handoff.md
+This session's folder: comms/dustinwarner/20261021-01/   (drop files here; conversation.md is append-only)
+Session id: (unknown — derive from cwd-slug + folder time)
+
+READ, in order (the only comms context at session start):
+  1. comms/README.md                      — the convention (rarely changes)
+  2. comms/patdabney/20261021-01/session-handoff.md   — canonical state + its "How to resume" manifest
+
+
+That's it. No other comms files, no prior-art, unless the handoff or the operator names them.
+  (overwatch: not installed — index rebuild skipped)
+
+When the session ends, run: ./comms/session-end.sh
+-- D: another user's unsealed draft does not warn or redirect
+  FAIL: D — out=
+=== Session intro — dustinwarner/20261021-01 ===
+Resuming from sealed handoff: comms/patdabney/20261021-01/session-handoff.md
+This session's folder: comms/dustinwarner/20261021-01/   (drop files here; conversation.md is append-only)
+Session id: (unknown — derive from cwd-slug + folder time)
+
+READ, in order (the only comms context at session start):
+  1. comms/README.md                      — the convention (rarely changes)
+  2. comms/patdabney/20261021-01/session-handoff.md   — canonical state + its "How to resume" manifest
+
+
+That's it. No other comms files, no prior-art, unless the handoff or the operator names them.
+  (overwatch: not installed — index rebuild skipped)
+
+When the session ends, run: ./comms/session-end.sh err=warning: newest handoff is an unsealed draft — resuming from the newest sealed handoff instead:
+  /tmp/comms-lifecycle.BIjgTc/comms/patdabney/20261021-01/session-handoff.md
+-- E: own unsealed draft falls back to own sealed, not a colleague's newer sealed
+  FAIL: E — out=
+=== Session intro — patdabney/20261021-01 ===
+Resuming from sealed handoff: comms/dustinwarner/20261021-01/session-handoff.md
+This session's folder: comms/patdabney/20261021-01/   (drop files here; conversation.md is append-only)
+Session id: (unknown — derive from cwd-slug + folder time)
+
+READ, in order (the only comms context at session start):
+  1. comms/README.md                      — the convention (rarely changes)
+  2. comms/dustinwarner/20261021-01/session-handoff.md   — canonical state + its "How to resume" manifest
+
+
+That's it. No other comms files, no prior-art, unless the handoff or the operator names them.
+  (overwatch: not installed — index rebuild skipped)
+
+When the session ends, run: ./comms/session-end.sh err=
+-- sealing an older folder does not claim to be the newest
+  FAIL: older seal message — Appended methodology findings to ~/.agent/learnings.md
+Sealed comms/patdabney/20261021-01/session-handoff.md — it is now the canonical state.
+Next session: ./comms/session-start.sh   (same-day continuation: --resume)
+
+== 11. comms-as-git (unit 1): repo valid + credential hook fires (8 assertions)
+  PASS: comms/ is a valid git repo
+  PASS: comms repo has history (initial commit)
+  PASS: tracked hook copy present (comms/hooks/pre-push)
+  PASS: active hook stamped (.git/hooks/pre-push executable)
+  PASS: hook copies identical (tree vs active)
+  PASS: hook refuses credential-shaped commit (exit 1)
+  PASS: refusal explains itself
+  PASS: refusal names the offending line
+  PASS: refusal names the deliberate escape
+  PASS: positive control: clean range passes the hook
+
+== RESULTS: 29 pass, 16 fail (comms-as-git extended set) ==
